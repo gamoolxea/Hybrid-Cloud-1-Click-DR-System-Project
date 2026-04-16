@@ -1,0 +1,23 @@
+---
+# ===========================================================
+# 공통 변수 (모든 온프레미스 서버에 적용)
+# ===========================================================
+
+# 타임존
+timezone: Asia/Seoul
+
+# 네트워크
+on_prem_private_subnet: 192.168.20.0/24
+on_prem_public_subnet: 192.168.10.0/24
+
+# 서비스 정보
+app_name: logistics-system
+app_service_name: logistics
+
+# ===========================================================
+# Vault 변수 (ansible-vault로 암호화 필요)
+# 사용법: ansible-vault encrypt_string '비밀번호' --name 'vault_변수명'
+# ===========================================================
+vault_tailscale_authkey: "already-configured"
+vault_mysql_root_password: "Qwer1234!"
+vault_db_app_password: "Qwer1234!"

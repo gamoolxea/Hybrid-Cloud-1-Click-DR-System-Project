@@ -1,0 +1,7 @@
+---
+# DB 서버만 개별 프로비저닝
+- name: Configure Database server
+  hosts: db
+  roles:
+    - common
+    - mysql

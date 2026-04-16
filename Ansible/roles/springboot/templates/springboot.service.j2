@@ -1,0 +1,27 @@
+[Unit]
+Description={{ app_name }} Spring Boot Application
+After=network.target
+
+[Service]
+Type=simple
+User={{ spring_boot_user }}
+Group={{ spring_boot_group }}
+WorkingDirectory={{ spring_boot_app_dir }}
+
+ExecStart=/usr/bin/java \
+  {{ spring_boot_jvm_opts }} \
+  -jar {{ spring_boot_app_dir }}/{{ spring_boot_jar_name }} \
+  --server.port={{ spring_boot_app_port }} \
+  --spring.datasource.url=jdbc:mysql://{{ spring_boot_db_host }}:{{ spring_boot_db_port }}/{{ spring_boot_db_name }} \
+  --spring.datasource.username={{ spring_boot_db_user }} \
+  --spring.datasource.password={{ spring_boot_db_password }}
+
+SuccessExitStatus=143
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+---
+# ===========================================================
+# Phase 3 - Failback: 온프레미스 전체 환경 프로비저닝
+#
+# 실행 방법:
+#   ansible-playbook playbooks/site.yml
+#
+# Jenkins에서 실행 시:
+#   ansible-playbook playbooks/site.yml \
+#     -e "jenkins_artifact_url=http://jenkins:8080/.../logistics-system.jar" \
+#     --vault-password-file /path/to/vault-password
+# ===========================================================
+
+- name: "[Phase 3] Common - 모든 서버 기본 설정"
+  hosts: all
+  roles:
+    - common
+
+- name: "[Phase 3] HAProxy - 로드밸런서 + 리버스 프록시"
+  hosts: haproxy
+  roles:
+    - haproxy
+    - tailscale
+
+- name: "[Phase 3] DB - MySQL 8.0 데이터베이스"
+  hosts: db
+  roles:
+    - mysql
+
+- name: "[Phase 3] WEB/WAS - Spring Boot 애플리케이션"
+  hosts: webwas
+  roles:
+    - springboot

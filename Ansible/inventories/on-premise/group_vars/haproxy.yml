@@ -1,0 +1,18 @@
+---
+# ===========================================================
+# HAProxy 서버 변수
+# ===========================================================
+
+# HAProxy 포트
+haproxy_frontend_port: 80
+haproxy_frontend_https_port: 443
+haproxy_stats_port: 8404
+
+# Backend 서버 목록
+haproxy_backends:
+  - name: webwas
+    address: 192.168.20.12
+    port: 8080
+
+# Tailscale 인증 키 (Vault 암호화 권장)
+tailscale_authkey: "{{ vault_tailscale_authkey }}"

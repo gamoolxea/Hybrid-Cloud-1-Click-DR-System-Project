@@ -1,0 +1,58 @@
+#---------------------------------------------------------------------
+# {{ app_name }} - HAProxy Configuration (Ansible Managed)
+#---------------------------------------------------------------------
+
+global
+    log         127.0.0.1 local2
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+    stats socket /var/lib/haproxy/stats
+
+defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    option                  http-server-close
+    option                  forwardfor except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    10s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          1m
+    timeout server          1m
+    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 3000
+
+#---------------------------------------------------------------------
+# Stats 모니터링 페이지
+#---------------------------------------------------------------------
+frontend stats
+    bind *:{{ haproxy_stats_port }}
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+
+#---------------------------------------------------------------------
+# Frontend - HTTP 트래픽 수신
+#---------------------------------------------------------------------
+frontend http_front
+    bind *:{{ haproxy_frontend_port }}
+    default_backend webwas_backend
+
+#---------------------------------------------------------------------
+# Backend - WEB/WAS (Spring Boot)
+#---------------------------------------------------------------------
+backend webwas_backend
+    balance roundrobin
+    option httpchk GET /actuator/health
+    http-check expect status 200
+{% for backend in haproxy_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ backend.port }} check inter 5s rise 2 fall 3
+{% endfor %}

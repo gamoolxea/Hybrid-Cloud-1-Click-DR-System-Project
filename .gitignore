@@ -1,0 +1,57 @@
+# ==========================================
+# 1. Terraform
+# ==========================================
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+
+# ==========================================
+# 2. Ansible & Secrets
+# ==========================================
+*.retry
+vault-password.txt
+*.vault.yml
+!*vault.yml.example
+.vault_pass
+secrets.yml
+credentials.yml
+
+# SSH Key Files (보안 핵심 - 절대 누락 금지)
+*.pem
+*.key
+*.ppk
+
+# ==========================================
+# 3. Spring Boot (Java / WAS)
+# ==========================================
+target/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!mvnw
+!mvnw.cmd
+*.class
+*.log
+
+# (주의) jar 파일은 GitHub Releases에 올리는 것이 맞으므로, 레포지토리 자체에는 올라가지 않게 차단
+*.jar
+*.war
+
+# ==========================================
+# 4. OS & IDE & Temp Files
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Python Caches
+__pycache__/
+*.py[cod]
+
+# ==========================================
+# 5. AI Extension History
+# ==========================================
+.claude/

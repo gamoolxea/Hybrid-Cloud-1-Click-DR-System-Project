@@ -1,0 +1,8 @@
+---
+# HAProxy 서버만 개별 프로비저닝
+- name: Configure HAProxy server
+  hosts: haproxy
+  roles:
+    - common
+    - haproxy
+    - tailscale

@@ -1,0 +1,30 @@
+---
+# ===========================================================
+# DB 서버 변수 (MySQL 8.0)
+# ===========================================================
+
+# MySQL 기본 설정
+mysql_version: "8.0"
+mysql_port: 3306
+mysql_bind_address: "0.0.0.0"
+mysql_datadir: /var/lib/mysql
+
+# 인증 (Vault 암호화 권장)
+mysql_root_password: "{{ vault_mysql_root_password }}"
+
+# 데이터베이스 생성
+mysql_databases:
+  - name: logistics
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+
+# 애플리케이션 사용자 생성
+mysql_users:
+  - name: logistics_user
+    host: "192.168.20.%"
+    password: "{{ vault_db_app_password }}"
+    priv: "logistics.*:ALL"
+
+# MySQL 튜닝 (VM 리소스에 맞게 조정)
+mysql_innodb_buffer_pool_size: "1G"
+mysql_max_connections: 200

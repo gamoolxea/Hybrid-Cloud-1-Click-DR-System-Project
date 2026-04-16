@@ -1,0 +1,34 @@
+---
+# ===========================================================
+# Tailscale 설치 및 설정 (AWS ↔ On-Premise 네트워킹)
+# ===========================================================
+
+- name: Install Tailscale
+  ansible.builtin.shell: |
+    curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale
+
+- name: Start and enable tailscaled
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Authenticate and connect to Tailscale network
+  ansible.builtin.command: >
+    tailscale up --authkey={{ tailscale_authkey }} --accept-routes
+  register: tailscale_up
+  changed_when: "'Success' in tailscale_up.stdout or tailscale_up.rc == 0"
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
+
+- name: Enable IP forwarding for Tailscale routing
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - net.ipv4.ip_forward
+    - net.ipv6.conf.all.forwarding

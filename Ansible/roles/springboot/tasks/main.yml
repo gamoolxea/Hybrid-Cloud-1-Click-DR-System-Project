@@ -1,0 +1,65 @@
+---
+# ===========================================================
+# Spring Boot WEB/WAS 배포
+# ===========================================================
+
+- name: Install Java {{ java_version }}
+  ansible.builtin.dnf:
+    name: "java-{{ java_version }}-openjdk"
+    state: present
+
+- name: Create application group
+  ansible.builtin.group:
+    name: "{{ spring_boot_group }}"
+    state: present
+
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ spring_boot_user }}"
+    group: "{{ spring_boot_group }}"
+    shell: /sbin/nologin
+    home: "{{ spring_boot_app_dir }}"
+    create_home: false
+    system: true
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ spring_boot_app_dir }}"
+    state: directory
+    owner: "{{ spring_boot_user }}"
+    group: "{{ spring_boot_group }}"
+    mode: "0755"
+
+- name: Deploy Spring Boot JAR
+  ansible.builtin.get_url:
+    url: "{{ spring_boot_jar_url }}"
+    dest: "{{ spring_boot_app_dir }}/{{ spring_boot_jar_name }}"
+    owner: "{{ spring_boot_user }}"
+    group: "{{ spring_boot_group }}"
+    mode: "0755"
+  notify: Restart Spring Boot
+  when: spring_boot_jar_url | length > 0
+
+- name: Create systemd service
+  ansible.builtin.template:
+    src: springboot.service.j2
+    dest: "/etc/systemd/system/{{ app_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Spring Boot
+
+- name: Open application port
+  ansible.posix.firewalld:
+    port: "{{ spring_boot_app_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Start and enable Spring Boot service
+  ansible.builtin.systemd:
+    name: "{{ app_service_name }}"
+    state: started
+    enabled: true

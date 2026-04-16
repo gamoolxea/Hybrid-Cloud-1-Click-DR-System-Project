@@ -1,0 +1,93 @@
+---
+# ===========================================================
+# MySQL 8.0 설치 및 설정
+# ===========================================================
+
+- name: Install MySQL 8.0 repository
+  ansible.builtin.command:
+    cmd: dnf install -y https://dev.mysql.com/get/mysql80-community-release-el9-5.noarch.rpm
+  args:
+    creates: /etc/yum.repos.d/mysql-community.repo
+
+- name: Install MySQL 8.0
+  ansible.builtin.dnf:
+    name:
+      - mysql-community-server
+      - mysql-community-client
+      - python3-PyMySQL
+    state: present
+
+- name: Deploy MySQL configuration
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /etc/my.cnf.d/custom.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart MySQL
+
+- name: Start and enable MySQL
+  ansible.builtin.systemd:
+    name: mysqld
+    state: started
+    enabled: true
+
+- name: Check if root password is already configured
+  ansible.builtin.shell: >
+    mysql -u root -p'{{ mysql_root_password }}' -e "SELECT 1" 2>/dev/null
+  register: mysql_root_check
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Get temporary root password (first install only)
+  ansible.builtin.shell: >
+    grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}'
+  register: mysql_temp_password
+  when: mysql_root_check.rc != 0
+  changed_when: false
+  no_log: true
+
+- name: Set MySQL root password
+  ansible.builtin.shell: >
+    mysql -u root -p'{{ mysql_temp_password.stdout }}' --connect-expired-password
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+  when:
+    - mysql_root_check.rc != 0
+    - mysql_temp_password.stdout | length > 0
+  no_log: true
+
+- name: Create application databases
+  community.mysql.mysql_db:
+    name: "{{ item.name }}"
+    encoding: "{{ item.encoding }}"
+    collation: "{{ item.collation }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  loop: "{{ mysql_databases }}"
+
+- name: Create application users
+  community.mysql.mysql_user:
+    name: "{{ item.name }}"
+    host: "{{ item.host }}"
+    password: "{{ item.password }}"
+    priv: "{{ item.priv }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  loop: "{{ mysql_users }}"
+  no_log: true
+
+- name: Open MySQL port
+  ansible.posix.firewalld:
+    port: "{{ mysql_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+
+# ===========================================================
+# TODO: Task 3 - 데이터 동기화 및 정합성 유지
+# Failback 시 AWS RDS → On-Premise MySQL 데이터 복원
+# 구현 방식 미정 (mysqldump / replication 등)
+# ===========================================================
