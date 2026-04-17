@@ -8,7 +8,7 @@
 dr_mode        = true
 
 # app_ami_id → springboot_ami_id
-springboot_ami_id        = "ami-0c8697730316c257b"
+springboot_ami_id        = "ami-0ecd90ec6999929bf"
 springboot_instance_type = "t3.micro"
 
 # ASG 풀 가동

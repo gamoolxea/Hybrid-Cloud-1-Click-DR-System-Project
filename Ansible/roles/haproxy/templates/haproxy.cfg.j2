@@ -51,8 +51,6 @@ frontend http_front
 #---------------------------------------------------------------------
 backend webwas_backend
     balance roundrobin
-    option httpchk GET /actuator/health
-    http-check expect status 200
 {% for backend in haproxy_backends %}
     server {{ backend.name }} {{ backend.address }}:{{ backend.port }} check inter 5s rise 2 fall 3
 {% endfor %}
