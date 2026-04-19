@@ -30,7 +30,17 @@
     group: "{{ spring_boot_group }}"
     mode: "0755"
 
-- name: Deploy Spring Boot JAR
+- name: Deploy Spring Boot JAR (from local path)
+  ansible.builtin.copy:
+    src: "{{ spring_boot_jar_src }}"
+    dest: "{{ spring_boot_app_dir }}/{{ spring_boot_jar_name }}"
+    owner: "{{ spring_boot_user }}"
+    group: "{{ spring_boot_group }}"
+    mode: "0755"
+  notify: Restart Spring Boot
+  when: (spring_boot_jar_src | default('')) | length > 0
+
+- name: Deploy Spring Boot JAR (from remote URL)
   ansible.builtin.get_url:
     url: "{{ spring_boot_jar_url }}"
     dest: "{{ spring_boot_app_dir }}/{{ spring_boot_jar_name }}"
@@ -38,7 +48,9 @@
     group: "{{ spring_boot_group }}"
     mode: "0755"
   notify: Restart Spring Boot
-  when: spring_boot_jar_url | length > 0
+  when:
+    - (spring_boot_jar_src | default('')) | length == 0
+    - spring_boot_jar_url | length > 0
 
 - name: Create systemd service
   ansible.builtin.template:
