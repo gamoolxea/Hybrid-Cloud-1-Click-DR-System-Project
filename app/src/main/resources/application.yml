@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: logistics-system
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  thymeleaf:
+    cache: false
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.soldesk.logistics: INFO
