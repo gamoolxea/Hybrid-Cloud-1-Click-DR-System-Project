@@ -185,17 +185,8 @@ EOF
 
                 dir('Ansible') {
                     sh '''
-                        ansible webwas -i inventories/on-premise-phase1/hosts.yml \
-                            -m shell -a '
-                                echo "===== systemctl status logistics ====="
-                                systemctl status logistics --no-pager -l || true
-                                echo "===== journalctl -u logistics (last 80 lines) ====="
-                                journalctl -u logistics --no-pager -n 80 || true
-                                echo "===== listening ports ====="
-                                ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || true
-                                echo "===== nginx / tomcat 서비스 존재 여부 ====="
-                                systemctl list-unit-files --no-pager | grep -E "(nginx|tomcat|httpd)" || echo "none found"
-                            '
+                        ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
+                            playbooks/diagnostics.yml
                     '''
                 }
             }

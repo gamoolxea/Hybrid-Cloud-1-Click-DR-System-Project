@@ -1,0 +1,47 @@
+---
+# ===========================================================
+# Phase 1 WEBWAS 진단 playbook
+#   - logistics 서비스 상태, 로그, 포트, 잔존 서비스 점검
+#   - 배포 후 502 등 이상 징후 원인 파악용
+# ===========================================================
+- name: Diagnose Phase 1 WEBWAS
+  hosts: webwas
+  become: true
+  gather_facts: false
+  tasks:
+
+    - name: systemctl status logistics
+      shell: systemctl status logistics --no-pager -l || true
+      register: svc_status
+      changed_when: false
+
+    - name: journalctl -u logistics (last 120 lines)
+      shell: journalctl -u logistics --no-pager -n 120 || true
+      register: svc_journal
+      changed_when: false
+
+    - name: listening ports
+      shell: ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || true
+      register: ports
+      changed_when: false
+
+    - name: nginx / tomcat / httpd unit files present?
+      shell: systemctl list-unit-files --no-pager | grep -E "(nginx|tomcat|httpd)" || echo "none found"
+      register: conflicting_units
+      changed_when: false
+
+    - name: === logistics service status ===
+      debug:
+        var: svc_status.stdout_lines
+
+    - name: === logistics journal ===
+      debug:
+        var: svc_journal.stdout_lines
+
+    - name: === listening ports ===
+      debug:
+        var: ports.stdout_lines
+
+    - name: === potentially conflicting unit files ===
+      debug:
+        var: conflicting_units.stdout_lines
