@@ -16,8 +16,7 @@ pipeline {
                 'Build & Release App',
                 'Phase 1 (Deploy App to On-Premise)',
                 'Phase 2 (Failover)',
-                'Phase 3 (Failback)',
-                'Diagnostics (Phase 1)'
+                'Phase 3 (Failback)'
             ],
             description: '수행할 작업을 선택하세요.'
         )
@@ -167,27 +166,6 @@ EOF
                             error("Ansible Playbook 실행 중 오류가 발생했습니다: ${e.message}")
                         }
                     }
-                }
-            }
-        }
-
-        // ============================================================
-        // 1-C. Diagnostics (Phase 1)
-        //      - Phase 1 WEBWAS의 서비스 상태/로그/포트 점유 현황 조회
-        //      - 배포 후 502 등 이상 징후가 있을 때 로그 수집용
-        // ============================================================
-        stage('Diagnostics (Phase 1)') {
-            when { expression { params.DR_ACTION == 'Diagnostics (Phase 1)' } }
-            steps {
-                echo '===================================================='
-                echo '[Diagnostics] Phase 1 WEBWAS 상태를 조회합니다.'
-                echo '===================================================='
-
-                dir('Ansible') {
-                    sh '''
-                        ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
-                            playbooks/diagnostics.yml
-                    '''
                 }
             }
         }
