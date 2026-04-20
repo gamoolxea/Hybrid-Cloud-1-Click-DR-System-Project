@@ -14,6 +14,7 @@ pipeline {
             choices: [
                 'Select Action',
                 'Build & Release App',
+                'Phase 1 (Deploy App to On-Premise)',
                 'Phase 2 (Failover)',
                 'Phase 3 (Failback)'
             ],
@@ -98,6 +99,73 @@ EOF
                         ASSET_URL=$(python3 -c "import json; print(json.load(open('upload-resp.json'))['browser_download_url'])")
                         echo "✅ Release 완료: ${ASSET_URL}"
                     '''
+                }
+            }
+        }
+
+        // ============================================================
+        // 1-B. Phase 1 (App Only Deploy to On-Premise)
+        //      - 이미 구축된 Phase 1 온프레미스 환경에 jar만 배포
+        //      - HAProxy/DB 재프로비저닝 없이 webwas.yml만 실행
+        // ============================================================
+        stage('Execute Phase 1 (Deploy App to On-Premise)') {
+            when { expression { params.DR_ACTION == 'Phase 1 (Deploy App to On-Premise)' } }
+            steps {
+                echo '===================================================='
+                echo '[Phase 1 시작] Phase 1 온프레미스 환경에 앱만 배포합니다.'
+                echo '===================================================='
+
+                withCredentials([usernamePassword(
+                        credentialsId: 'github-pat',
+                        usernameVariable: 'GH_USER',
+                        passwordVariable: 'GH_TOKEN')]) {
+                    sh '''
+                        set -e
+                        mkdir -p artifacts
+                        rm -f ${ARTIFACT}
+
+                        echo "▶ 최신 Release 정보 조회..."
+                        LATEST=$(curl -fsS \
+                            -H "Authorization: token ${GH_TOKEN}" \
+                            -H "Accept: application/vnd.github+json" \
+                            "https://api.github.com/repos/${REPO}/releases/latest")
+
+                        TAG=$(echo "$LATEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${JAR_NAME}']; print(xs[0]['id'] if xs else '')")
+
+                        if [ -z "$ASSET_ID" ]; then
+                            echo "❌ ERROR: 최신 Release(${TAG})에 ${JAR_NAME} asset이 없습니다."
+                            echo "   먼저 'Build & Release App'을 실행해 주세요."
+                            exit 1
+                        fi
+
+                        echo "▶ 다운로드: tag=${TAG}, asset_id=${ASSET_ID}"
+
+                        curl -fsSL \
+                            -H "Authorization: token ${GH_TOKEN}" \
+                            -H "Accept: application/octet-stream" \
+                            "https://api.github.com/repos/${REPO}/releases/assets/${ASSET_ID}" \
+                            -o ${ARTIFACT}
+
+                        ls -la ${ARTIFACT}
+                        echo "✅ 다운로드 완료"
+                    '''
+                }
+
+                dir('Ansible') {
+                    script {
+                        try {
+                            echo "▶ Ansible Playbook(webwas.yml) 실행 - Phase 1 환경 앱 배포"
+                            sh '''
+                                ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
+                                    playbooks/webwas.yml \
+                                    -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}"
+                            '''
+                            echo "▶ Phase 1 앱 배포 완료"
+                        } catch (Exception e) {
+                            error("Ansible Playbook 실행 중 오류가 발생했습니다: ${e.message}")
+                        }
+                    }
                 }
             }
         }
