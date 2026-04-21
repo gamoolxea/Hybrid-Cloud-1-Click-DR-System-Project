@@ -1,0 +1,25 @@
+---
+# ===========================================================
+# WEB/WAS 서버 변수 (Spring Boot)
+# ===========================================================
+
+# Java
+java_version: "17"
+
+# Spring Boot 설정
+spring_boot_app_port: 8080
+spring_boot_jar_url: "{{ jenkins_artifact_url | default('') }}"
+spring_boot_jar_name: "{{ app_name }}.jar"
+spring_boot_app_dir: "/opt/{{ app_name }}"
+spring_boot_user: "{{ app_name }}"
+spring_boot_group: "{{ app_name }}"
+
+# JVM 옵션
+spring_boot_jvm_opts: "-Xms512m -Xmx1024m"
+
+# DB 연결 정보
+spring_boot_db_host: 192.168.20.20
+spring_boot_db_port: 3306
+spring_boot_db_name: logistics
+spring_boot_db_user: logistics_user
+spring_boot_db_password: "{{ vault_db_app_password }}"
