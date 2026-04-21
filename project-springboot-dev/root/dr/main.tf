@@ -119,6 +119,13 @@ module "compute" {
 
   # 신규 추가
   dr_mode                  = var.dr_mode
+
+  db_password              = var.db_password
+  onprem_db_ip             = var.onprem_db_ip
+  rds_endpoint             = module.database.rds_endpoint
+  db_ec2_private_ip        = var.db_ec2_private_ip
+
+  depends_on = [module.database]
 }
 
 ############################

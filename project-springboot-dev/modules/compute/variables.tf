@@ -182,3 +182,24 @@ variable "db_ec2_sg_id" {
   description = "DB EC2 Security Group ID"
   type        = string
 }
+
+variable "db_password" {
+  description = "DB 비밀번호"
+  type        = string
+  sensitive   = true
+}
+
+variable "onprem_db_ip" {
+  description = "온프렘 DB Tailscale IP"
+  type        = string
+}
+
+variable "rds_endpoint" {
+  description = "RDS 엔드포인트"
+  type        = string
+}
+
+variable "db_ec2_private_ip" {
+  description = "DB EC2 고정 프라이빗 IP (Stop/Start 대응)"
+  type        = string
+}

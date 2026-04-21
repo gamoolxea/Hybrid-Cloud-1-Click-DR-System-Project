@@ -62,3 +62,8 @@ output "db_ec2_private_ip" {
   description = "DB EC2 프라이빗 IP"
   value       = aws_instance.db_ec2.private_ip
 }
+
+output "db_ec2_instance_id" {
+  description = "DB EC2 인스턴스 ID (Jenkins Stop/Start 참조용)"
+  value       = aws_instance.db_ec2.id
+}

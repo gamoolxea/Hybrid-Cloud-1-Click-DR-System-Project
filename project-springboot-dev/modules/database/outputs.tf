@@ -1,5 +1,5 @@
 output "rds_endpoint" {
-  value = aws_db_instance.main.endpoint
+  value = aws_db_instance.main.address
 }
 
 output "rds_port" {
