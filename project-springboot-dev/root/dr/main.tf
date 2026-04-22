@@ -2,7 +2,7 @@
 # Provider & Terraform 설정
 ############################
 terraform {
-  required_version = "= 1.14.8"
+  required_version = "~> 1.14.0"
 
   required_providers {
     aws = {

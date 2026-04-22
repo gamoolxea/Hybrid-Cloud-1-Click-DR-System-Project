@@ -1,0 +1,16 @@
+# Terraform S3 Remote Backend 개인 설정 예시
+#
+# 각 팀원이 자신의 AWS 환경에 맞춰 이 파일을 복사해서 backend.hcl 로 저장하고
+# 값을 채워 넣은 뒤 아래처럼 init을 실행한다.
+#
+#   cp backend.hcl.example backend.hcl
+#   # backend.hcl 편집
+#   terraform init -backend-config=backend.hcl
+#
+# backend.hcl 자체는 .gitignore에 포함되어 있어 팀 레포에 올라가지 않는다.
+# 이 예시 파일(backend.hcl.example)만 팀 공유용으로 커밋된다.
+
+bucket         = "YOUR-BUCKET-NAME"
+key            = "project-springboot-dev/dr/terraform.tfstate"
+region         = "ap-northeast-2"
+dynamodb_table = "terraform-state-lock"

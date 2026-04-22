@@ -7,6 +7,10 @@
 .terraform.lock.hcl
 terraform.tfvars
 
+# Remote backend 개인 설정 (각자 AWS 계정별로 다름, 팀원 간 공유 금지)
+backend.hcl
+!backend.hcl.example
+
 # ==========================================
 # 2. Ansible & Secrets
 # ==========================================
