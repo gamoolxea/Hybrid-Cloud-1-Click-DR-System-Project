@@ -155,13 +155,13 @@ module "database" {
 # Route53
 ############################
 data "aws_route53_zone" "main" {
-  name         = "llddww1004.store"
+  name         = var.route53_zone_name
   private_zone = false
 }
 
 resource "aws_route53_record" "app" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "llddww1004.store"
+  name    = var.route53_zone_name
   type    = "A"
 
   alias {
@@ -173,7 +173,7 @@ resource "aws_route53_record" "app" {
 
 resource "aws_route53_record" "www" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "www.llddww1004.store"
+  name    = "www.${var.route53_zone_name}"
   type    = "A"
 
   alias {

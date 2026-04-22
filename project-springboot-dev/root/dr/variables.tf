@@ -210,3 +210,11 @@ variable "github_token" {
   default     = ""
 }
 
+############################
+# Route53 (팀원별로 다른 도메인)
+############################
+variable "route53_zone_name" {
+  description = "각자 AWS 계정에 등록된 Route53 Hosted Zone 도메인 (예: example.com)"
+  type        = string
+}
+
