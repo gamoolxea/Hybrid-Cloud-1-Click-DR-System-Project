@@ -121,9 +121,14 @@ module "compute" {
   dr_mode                  = var.dr_mode
 
   db_password              = var.db_password
+  db_username              = var.db_username
   onprem_db_ip             = var.onprem_db_ip
   rds_endpoint             = module.database.rds_endpoint
   db_ec2_private_ip        = var.db_ec2_private_ip
+
+  # Spring Boot 런타임 설정
+  springboot_jar_url = var.springboot_jar_url
+  github_token       = var.github_token
 
   depends_on = [module.database]
 }

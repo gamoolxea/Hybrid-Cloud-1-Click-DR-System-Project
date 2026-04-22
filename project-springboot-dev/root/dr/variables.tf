@@ -194,3 +194,19 @@ variable "db_ec2_private_ip" {
   type        = string
 }
 
+############################
+# Spring Boot 런타임 설정
+############################
+variable "springboot_jar_url" {
+  description = "GitHub Release jar 다운로드 URL"
+  type        = string
+  default     = ""
+}
+
+variable "github_token" {
+  description = "GitHub PAT (Private Repo 접근용)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+

@@ -288,8 +288,8 @@ resource "aws_security_group" "springboot" {
 
   ingress {
     description     = "Spring Boot from ALB"
-    from_port       = 80
-    to_port         = 80
+    from_port       = 8080
+    to_port         = 8080
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -406,8 +406,8 @@ resource "aws_security_group" "jenkins" {
 
   ingress {
     description     = "Jenkins UI from bastion"
-    from_port       = 80
-    to_port         = 80
+    from_port       = 8080
+    to_port         = 8080
     protocol        = "tcp"
     security_groups = [aws_security_group.bastion.id]
   }

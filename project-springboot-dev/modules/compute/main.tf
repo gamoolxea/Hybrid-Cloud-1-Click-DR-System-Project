@@ -18,13 +18,13 @@ resource "aws_lb" "app" {
 ############################
 resource "aws_lb_target_group" "springboot" {
   name     = "${var.project_name}-springboot-tg"
-  port     = 80
+  port     = 8080
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
   health_check {
-    path = "/"
-    port = "80"
+    path = "/actuator/health"
+    port = "8080"
   }
 
   tags = merge(var.common_tags, {
@@ -42,7 +42,7 @@ resource "aws_lb_target_group" "haproxy" {
   vpc_id   = var.vpc_id
 
   health_check {
-    path = "/"
+    path = "/actuator/health"
     port = "80"
   }
 }
@@ -71,6 +71,21 @@ resource "aws_launch_template" "springboot" {
   key_name      = var.key_name
 
   vpc_security_group_ids = [var.springboot_sg_id]
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.springboot.name
+  }
+
+  user_data = base64encode(templatefile(
+    "${path.module}/templates/springboot_user_data.sh.tpl",
+    {
+      jar_url      = var.springboot_jar_url
+      github_token = var.github_token
+      db_url       = var.rds_endpoint
+      db_username  = var.db_username
+      db_password  = var.db_password
+    }
+  ))
 
   block_device_mappings {
     device_name = "/dev/xvda"
@@ -176,8 +191,8 @@ frontend http_front
     default_backend onprem_back
 backend onprem_back
     balance roundrobin
-    option  httpchk GET /
-    server  onprem 100.79.94.82:80 check
+    option  httpchk GET /actuator/health
+    server  onprem 100.79.94.82:8080 check
 HAPROXY
 systemctl enable haproxy
 systemctl restart haproxy
@@ -228,6 +243,7 @@ resource "aws_instance" "jenkins" {
   key_name                    = var.key_name
   vpc_security_group_ids      = [var.jenkins_sg_id]
   associate_public_ip_address = false
+  iam_instance_profile        = aws_iam_instance_profile.jenkins.name
 
   root_block_device {
     volume_size           = 30
@@ -316,10 +332,12 @@ sleep 30
 ############################
 # Phase 4: Replication 설정
 ############################
-# Step 1: 온프렘 → DB EC2 초기 dump (GTID=OFF)
+# Step 1: 온프렘 → DB EC2 초기 dump (GTID=ON으로 1062 Duplicate 에러 방지)
+# --set-gtid-purged=ON: dump에 SET GTID_PURGED 포함 → DB EC2가 이미 실행한 GTID로 인식
+# --source-data=2: dump에 binlog 위치 코멘트 포함 (참고용)
 mysqldump -h ${var.onprem_db_ip} \
   -u repl_user -p"${var.db_password}" \
-  --single-transaction --set-gtid-purged=OFF \
+  --single-transaction --source-data=2 --set-gtid-purged=ON \
   --databases appdb \
   | mysql -u root -p"${var.db_password}"
 

@@ -203,3 +203,22 @@ variable "db_ec2_private_ip" {
   description = "DB EC2 고정 프라이빗 IP (Stop/Start 대응)"
   type        = string
 }
+
+############################
+# Spring Boot 런타임 설정
+############################
+variable "springboot_jar_url" {
+  description = "GitHub Release에서 다운로드할 Spring Boot jar URL"
+  type        = string
+}
+
+variable "github_token" {
+  description = "GitHub PAT (Private Repo Release 접근용)"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_username" {
+  description = "DB 접속용 사용자명 (app.jar DataSource)"
+  type        = string
+}
