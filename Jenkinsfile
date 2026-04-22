@@ -172,17 +172,122 @@ EOF
 
         // ============================================================
         // 2. Phase 2 (Failover to AWS)
+        //    - Terraform apply로 dr_mode=true 전환 (ALB TG 교체 + ASG 0→N scale up)
+        //    - EC2 user_data가 jar 다운로드 + Actuator health 자동화
+        //    - ALB에서 타겟 healthy 대기
+        //    - RDS 복제 정지 (primary 승격)
+        //    - Smoke test
         // ============================================================
         stage('Execute Phase 2 (Failover to AWS)') {
             when { expression { params.DR_ACTION == 'Phase 2 (Failover)' } }
+            environment {
+                TF_DIR    = 'project-springboot-dev/root/dr'
+                AWS_REGION = 'ap-northeast-2'
+                TG_NAME   = 'project-springboot-tg'
+                CONFIG_DIR = '/etc/hybrid-dr'
+            }
             steps {
                 echo '===================================================='
-                echo '[Phase 2 시작] AWS 환경으로 트래픽 Failover를 준비합니다.'
-                echo '1. Terraform 설정 및 초기화 (terraform init)'
-                echo '2. AWS 리소스 프로비저닝 (terraform apply)'
-                echo '3. RDS Primary 승격 등 데이터베이스 작업'
+                echo '[Phase 2 시작] AWS 환경으로 트래픽 Failover 진행'
                 echo '===================================================='
-                // 향후 이곳에 Terraform 실행 쉘 스크립트(sh)가 들어갑니다.
+
+                // 2-1) Terraform init + apply (dr_mode=true, ASG 풀 가동)
+                dir("${env.TF_DIR}") {
+                    sh '''
+                        set -e
+                        echo "▶ 1/4: Terraform init + apply (dr-active.tfvars)"
+                        terraform init -reconfigure \
+                          -backend-config=${CONFIG_DIR}/backend.hcl
+                        terraform apply \
+                          -var-file=${CONFIG_DIR}/terraform.tfvars \
+                          -var-file="dr-active.tfvars" \
+                          -auto-approve
+                    '''
+                }
+
+                // 2-2) ALB에서 ASG 타겟이 healthy가 될 때까지 대기 (최대 10분)
+                sh '''
+                    set -e
+                    echo "▶ 2/4: ALB 타겟 healthy 대기 (EC2 user_data가 jar + actuator health까지 준비)"
+                    SPRINGBOOT_TG_ARN=$(aws elbv2 describe-target-groups \
+                      --names ${TG_NAME} \
+                      --region ${AWS_REGION} \
+                      --query 'TargetGroups[0].TargetGroupArn' --output text)
+                    echo "TG ARN: $SPRINGBOOT_TG_ARN"
+
+                    HEALTHY=0
+                    for i in $(seq 1 60); do
+                      HEALTHY=$(aws elbv2 describe-target-health \
+                        --target-group-arn "$SPRINGBOOT_TG_ARN" \
+                        --region ${AWS_REGION} \
+                        --query 'length(TargetHealthDescriptions[?TargetHealth.State==`healthy`])' \
+                        --output text)
+                      echo "[$i/60] Healthy targets: $HEALTHY"
+                      if [ "$HEALTHY" -gt "0" ]; then break; fi
+                      sleep 10
+                    done
+
+                    if [ "$HEALTHY" -eq "0" ]; then
+                      echo "❌ ERROR: 10분 내 healthy 타겟 없음. EC2 로그 확인 필요 (user_data 실패 가능)"
+                      exit 1
+                    fi
+                    echo "✅ ASG healthy: $HEALTHY 대"
+                '''
+
+                // 2-3) RDS 복제 정지 → RDS를 standalone primary로 승격
+                sh '''
+                    set -e
+                    echo "▶ 3/4: RDS replication 정지 (standalone primary 승격)"
+
+                    # terraform output에서 RDS endpoint 조회
+                    cd ${TF_DIR}
+                    RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+                    cd - > /dev/null
+
+                    # DB 접속 정보는 개인 tfvars에서 추출 (git 레포에는 없는 파일)
+                    DB_USERNAME=$(grep '^db_username' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "' || true)
+                    DB_USERNAME="${DB_USERNAME:-admin}"
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+
+                    echo "RDS: $RDS_ENDPOINT, user: $DB_USERNAME"
+
+                    # rds_stop_replication이 이미 stopped 상태면 에러 나는데, 그건 OK
+                    mysql -h "$RDS_ENDPOINT" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
+                      -e "CALL mysql.rds_stop_replication;" 2>&1 | tee /tmp/rds_stop.log || true
+
+                    # "not running" 이외의 error는 진짜 실패
+                    if grep -i "error" /tmp/rds_stop.log | grep -vi "not running" | grep -vi "warning" > /dev/null; then
+                      echo "❌ RDS stop_replication 실패"
+                      cat /tmp/rds_stop.log
+                      exit 1
+                    fi
+                    echo "✅ RDS 복제 정지 완료"
+                '''
+
+                // 2-4) Smoke test: ALB를 통한 애플리케이션 정상 응답 확인
+                sh '''
+                    set +e
+                    echo "▶ 4/4: Smoke test (ALB → Spring Boot /actuator/health)"
+                    DOMAIN=$(grep '^route53_zone_name' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+
+                    SUCCESS=0
+                    for i in $(seq 1 12); do
+                      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://$DOMAIN/actuator/health" || echo "000")
+                      echo "[$i/12] GET http://$DOMAIN/actuator/health -> $HTTP_CODE"
+                      if [ "$HTTP_CODE" = "200" ]; then SUCCESS=1; break; fi
+                      sleep 10
+                    done
+
+                    if [ "$SUCCESS" = "1" ]; then
+                      echo "✅ Smoke test PASSED"
+                    else
+                      echo "⚠️  WARNING: 2분 내 200 응답 없음"
+                      echo "   수동 확인: curl -v http://$DOMAIN/actuator/health"
+                      exit 1
+                    fi
+                '''
+
+                echo '▶ Phase 2 완료'
             }
         }
 
