@@ -2,130 +2,44 @@
 set -euo pipefail
 
 ############################
-# Spring Boot 인스턴스 초기 설정 (하이브리드)
+# Spring Boot 인스턴스 초기 설정
 #
-# 현재 사용 중인 AMI(project-app-golden-v2, AL2023+Tomcat)는 dr-infra-scripts의
-# springboot_app_role.sh로 만들어야 하는 구조가 없습니다. 일단 여기서 직접 복제.
+# AMI: springboot-app-golden-* (dr-infra-scripts/springboot_app.pkr.hcl로 빌드된
+# Rocky Linux 9 + Amazon Corretto 17 기반 Golden AMI)
 #
-# 팀원이 dr-infra-scripts의 Packer 스크립트로 Rocky 9 기반 AMI를 빌드하면,
-# 이 스크립트는 축소되어 맨 아래 "런타임 주입" 부분만 남으면 됩니다.
+# AMI가 이미 제공하는 것:
+#   - /opt/myapp/{app,config,logs} 디렉토리 + myapp 유저
+#   - /etc/systemd/system/myapp.service (jar 없으면 안 떠 있음)
+#   - /opt/myapp/app/inject_runtime_config.sh (런타임 env 주입 스크립트)
+#   - Java 17, firewalld 8080 오픈, Tailscale
+#
+# 여기서 하는 일:
+#   1) jar 다운로드 → /opt/myapp/app/app.jar
+#   2) 런타임 env 변수 export
+#   3) inject_runtime_config.sh 호출 (AMI가 env 파일 작성 + 서비스 기동 + 헬스체크)
 ############################
 
-APP_USER="myapp"
-APP_GROUP="myapp"
-APP_HOME="/opt/myapp"
-APP_DIR="$${APP_HOME}/app"
-CONFIG_DIR="$${APP_HOME}/config"
-LOG_DIR="$${APP_HOME}/logs"
-JAR_PATH="$${APP_DIR}/app.jar"
-ENV_FILE="$${CONFIG_DIR}/myapp.env"
-SERVICE_NAME="myapp"
-
-############################
-# [1] AMI에 있는 Tomcat 정리 (포트 8080 해방)
-############################
-systemctl stop tomcat 2>/dev/null || true
-systemctl disable tomcat 2>/dev/null || true
-
-############################
-# [2] myapp 유저/그룹
-############################
-if ! getent group "$${APP_GROUP}" >/dev/null 2>&1; then
-  groupadd -r "$${APP_GROUP}"
-fi
-
-if ! id "$${APP_USER}" >/dev/null 2>&1; then
-  useradd -r -g "$${APP_GROUP}" -m -d "/home/$${APP_USER}" -s /sbin/nologin "$${APP_USER}"
-fi
-
-############################
-# [3] 디렉토리 구조
-############################
-mkdir -p "$${APP_DIR}" "$${CONFIG_DIR}" "$${LOG_DIR}"
-chown -R "$${APP_USER}:$${APP_GROUP}" "$${APP_HOME}"
-chmod 755 "$${APP_HOME}" "$${APP_DIR}" "$${LOG_DIR}"
-chmod 750 "$${CONFIG_DIR}"
-
-############################
-# [4] jar 다운로드 (GitHub Private Release, API URL 방식)
-#     github_token, jar_url은 Terraform이 렌더링 시점에 치환
-############################
+# jar 다운로드 (GitHub Private Release, asset API URL 방식)
 curl -L -fsSL \
   -H "Authorization: token ${github_token}" \
   -H "Accept: application/octet-stream" \
-  -o "$${JAR_PATH}" \
+  -o /opt/myapp/app/app.jar \
   "${jar_url}"
 
-chown "$${APP_USER}:$${APP_GROUP}" "$${JAR_PATH}"
-chmod 750 "$${JAR_PATH}"
+chown myapp:myapp /opt/myapp/app/app.jar
+chmod 750 /opt/myapp/app/app.jar
 
 ############################
-# [5] Java 경로 탐지 (AMI에 설치된 Java 17 사용)
+# 런타임 env 변수 (inject_runtime_config.sh가 읽음)
 ############################
-JAVA_PATH="$(command -v java)"
-JAVA_BIN="$(readlink -f "$JAVA_PATH")"
-JAVA_HOME_DIR="$(dirname "$(dirname "$JAVA_BIN")")"
+export SPRING_DATASOURCE_URL="jdbc:mysql://${db_url}:3306/appdb?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true"
+export SPRING_DATASOURCE_USERNAME="${db_username}"
+export SPRING_DATASOURCE_PASSWORD="${db_password}"
+export SPRING_PROFILES_ACTIVE="prod"
+export SERVER_PORT=8080
 
 ############################
-# [6] systemd service 유닛 생성
+# AMI의 런타임 주입 스크립트 호출
+# → env 파일 write + systemctl restart myapp + /actuator/health 대기
 ############################
-cat > /etc/systemd/system/myapp.service <<UNIT_EOF
-[Unit]
-Description=MyApp Spring Boot Service
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=$${JAR_PATH}
-
-[Service]
-Type=simple
-User=$${APP_USER}
-Group=$${APP_GROUP}
-WorkingDirectory=$${APP_DIR}
-Environment=JAVA_HOME=$${JAVA_HOME_DIR}
-EnvironmentFile=-$${ENV_FILE}
-ExecStart=$${JAVA_HOME_DIR}/bin/java -jar $${JAR_PATH}
-SuccessExitStatus=143
-Restart=on-failure
-RestartSec=10
-UMask=0027
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-UNIT_EOF
-
-############################
-# [7] 런타임 env 파일 작성
-#     db_url/db_username/db_password는 Terraform이 렌더링 시점에 치환
-############################
-cat > "$${ENV_FILE}" <<ENV_EOF
-SPRING_PROFILES_ACTIVE=prod
-SERVER_PORT=8080
-APP_ENV=dr
-SPRING_DATASOURCE_URL=jdbc:mysql://${db_url}:3306/appdb?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true
-SPRING_DATASOURCE_USERNAME=${db_username}
-SPRING_DATASOURCE_PASSWORD=${db_password}
-ENV_EOF
-
-chown "$${APP_USER}:$${APP_GROUP}" "$${ENV_FILE}"
-chmod 600 "$${ENV_FILE}"
-
-############################
-# [8] 서비스 시작
-############################
-systemctl daemon-reload
-systemctl enable --now "$${SERVICE_NAME}"
-
-############################
-# [9] 부팅 로그용 헬스체크 스팟체크 (실패해도 진행, ALB가 자체 체크함)
-############################
-for i in $(seq 1 30); do
-  if curl --silent --fail --max-time 3 "http://127.0.0.1:8080/actuator/health" >/dev/null 2>&1; then
-    echo "[user_data] actuator/health OK after $i attempts"
-    break
-  fi
-  sleep 2
-done || true
-
-echo "[user_data] springboot EC2 초기화 완료"
+bash /opt/myapp/app/inject_runtime_config.sh
