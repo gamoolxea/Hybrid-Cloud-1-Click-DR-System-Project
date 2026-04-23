@@ -62,8 +62,9 @@ chmod 750 "$${JAR_PATH}"
 ############################
 # [5] Java 경로 탐지 (AMI에 설치된 Java 17 사용)
 ############################
-JAVA_BIN="$$(readlink -f "$$(command -v java)")"
-JAVA_HOME_DIR="$$(dirname "$$(dirname "$${JAVA_BIN}")")"
+JAVA_PATH="$(command -v java)"
+JAVA_BIN="$(readlink -f "$JAVA_PATH")"
+JAVA_HOME_DIR="$(dirname "$(dirname "$JAVA_BIN")")"
 
 ############################
 # [6] systemd service 유닛 생성
@@ -119,9 +120,9 @@ systemctl enable --now "$${SERVICE_NAME}"
 ############################
 # [9] 부팅 로그용 헬스체크 스팟체크 (실패해도 진행, ALB가 자체 체크함)
 ############################
-for i in $$(seq 1 30); do
+for i in $(seq 1 30); do
   if curl --silent --fail --max-time 3 "http://127.0.0.1:8080/actuator/health" >/dev/null 2>&1; then
-    echo "[user_data] actuator/health OK after $${i} attempts"
+    echo "[user_data] actuator/health OK after $i attempts"
     break
   fi
   sleep 2
