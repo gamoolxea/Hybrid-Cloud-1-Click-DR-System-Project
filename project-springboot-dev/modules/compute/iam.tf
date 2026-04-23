@@ -178,7 +178,8 @@ resource "aws_iam_role_policy" "jenkins_dr_control" {
           "ec2:*",
           "rds:*",
           "elasticloadbalancing:*",
-          "route53:*"
+          "route53:*",
+          "autoscaling:*"
         ]
         Resource = "*"
       },
