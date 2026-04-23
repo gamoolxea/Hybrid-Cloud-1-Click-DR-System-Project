@@ -204,6 +204,9 @@ resource "aws_iam_role_policy" "jenkins_dr_control" {
           "iam:ListRolePolicies",
           "iam:GetInstanceProfile",
           "iam:TagRole",
+          "iam:UntagRole",
+          "iam:TagInstanceProfile",
+          "iam:UntagInstanceProfile",
           "iam:ListInstanceProfilesForRole"
         ]
         Resource = [

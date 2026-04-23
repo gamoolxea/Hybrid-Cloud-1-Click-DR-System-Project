@@ -195,7 +195,7 @@ EOF
                 dir("${env.TF_DIR}") {
                     sh '''
                         set -e
-                        echo "▶ 1/4: Terraform init + apply (dr-active.tfvars)"
+                        echo "▶ 1/6: Terraform init + apply (dr-active.tfvars)"
                         terraform init -reconfigure \
                           -backend-config=${CONFIG_DIR}/backend.hcl
                         terraform apply \
