@@ -208,7 +208,7 @@ EOF
                 // 2-2) ALB에서 ASG 타겟이 healthy가 될 때까지 대기 (최대 10분)
                 sh '''
                     set -e
-                    echo "▶ 2/4: ALB 타겟 healthy 대기 (EC2 user_data가 jar + actuator health까지 준비)"
+                    echo "▶ 2/6: ALB 타겟 healthy 대기 (EC2 user_data가 jar + actuator health까지 준비)"
                     SPRINGBOOT_TG_ARN=$(aws elbv2 describe-target-groups \
                       --names ${TG_NAME} \
                       --region ${AWS_REGION} \
@@ -234,25 +234,93 @@ EOF
                     echo "✅ ASG healthy: $HEALTHY 대"
                 '''
 
-                // 2-3) RDS 복제 정지 → RDS를 standalone primary로 승격
+                // 2-3) RDS lag=0 확인 (데이터 유실 방지 사전 검증)
+                //   RDS의 SHOW SLAVE STATUS로 Seconds_Behind_Master 조회
+                //   DB EC2에서 넘어오는 복제가 다 따라잡혔는지 확인
                 sh '''
                     set -e
-                    echo "▶ 3/4: RDS replication 정지 (standalone primary 승격)"
+                    echo "▶ 3/6: RDS → DB EC2 복제 lag = 0 확인 (최대 1분 폴링)"
 
-                    # terraform output에서 RDS endpoint 조회
                     cd ${TF_DIR}
                     RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
                     cd - > /dev/null
 
-                    # DB 접속 정보는 개인 tfvars에서 추출 (git 레포에는 없는 파일)
-                    DB_USERNAME=$(grep '^db_username' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "' || true)
-                    DB_USERNAME="${DB_USERNAME:-admin}"
                     DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
 
-                    echo "RDS: $RDS_ENDPOINT, user: $DB_USERNAME"
+                    LAG_READY=0
+                    for i in $(seq 1 30); do
+                      LAG=$(mysql -h "$RDS_ENDPOINT" -u admin -p"$DB_PASSWORD" \
+                        -e "SHOW SLAVE STATUS\\G" 2>/dev/null \
+                        | grep "Seconds_Behind_Master" | awk '{print $2}')
 
-                    # rds_stop_replication이 이미 stopped 상태면 에러 나는데, 그건 OK
-                    mysql -h "$RDS_ENDPOINT" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
+                      echo "[$i/30] Seconds_Behind_Master = ${LAG:-EMPTY}"
+
+                      if [ "$LAG" = "0" ]; then
+                        LAG_READY=1
+                        break
+                      fi
+                      sleep 2
+                    done
+
+                    if [ "$LAG_READY" != "1" ]; then
+                      echo "❌ RDS lag이 1분 내 0이 되지 않음"
+                      echo "   → 페일오버 중단 (데이터 유실 위험). 수동 확인 필요:"
+                      echo "   mysql -h $RDS_ENDPOINT -u admin -p\\$DB_PASS -e 'SHOW SLAVE STATUS\\\\G'"
+                      exit 1
+                    fi
+                    echo "✅ RDS lag = 0 확인 (RDS가 DB EC2 상태 완전히 동기화 완료)"
+                '''
+
+                // 2-4) DB EC2 격리 — Option B 소프트 페일오버
+                //   STOP SLAVE       : 온프렘으로부터 복제 수신 중단
+                //   RESET SLAVE ALL  : master 연결 정보 완전 삭제 (standalone 상태)
+                //   super_read_only  : 모든 쓰기 차단 (SUPER 권한자 포함) → 스플릿 브레인 방지
+                //   → DB EC2는 "frozen read-only snapshot" 상태로 DR 기간 유지
+                sh '''
+                    set -e
+                    echo "▶ 4/6: DB EC2 격리 (STOP SLAVE → RESET SLAVE ALL → super_read_only=ON)"
+
+                    cd ${TF_DIR}
+                    DB_EC2_IP=$(terraform output -raw db_ec2_private_ip)
+                    cd - > /dev/null
+
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+
+                    echo "DB EC2: $DB_EC2_IP (user: repl_user)"
+
+                    mysql -h "$DB_EC2_IP" -u repl_user -p"$DB_PASSWORD" 2>&1 | tee /tmp/db_ec2_iso.log <<'SQL' || true
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL super_read_only = ON;
+SQL
+
+                    # "Slave ... not running" 외의 error만 실패 처리 (이미 stop된 상태는 OK)
+                    if grep -i "ERROR" /tmp/db_ec2_iso.log \
+                       | grep -vi "Slave.*not running" \
+                       | grep -vi "Replica.*not running" > /dev/null; then
+                      echo "❌ DB EC2 격리 실패"
+                      cat /tmp/db_ec2_iso.log
+                      echo ""
+                      echo "   → repl_user 권한 부족일 수 있음. DB EC2에서 1회 실행 필요:"
+                      echo "   GRANT REPLICATION_SLAVE_ADMIN, SYSTEM_VARIABLES_ADMIN, REPLICATION CLIENT"
+                      echo "     ON *.* TO 'repl_user'@'%'; FLUSH PRIVILEGES;"
+                      exit 1
+                    fi
+                    echo "✅ DB EC2 frozen read-only snapshot 완료"
+                '''
+
+                // 2-5) RDS 복제 정지 → RDS를 standalone primary로 승격
+                sh '''
+                    set -e
+                    echo "▶ 5/6: RDS replication 정지 (standalone primary 승격)"
+
+                    cd ${TF_DIR}
+                    RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+                    cd - > /dev/null
+
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+
+                    mysql -h "$RDS_ENDPOINT" -u admin -p"$DB_PASSWORD" \
                       -e "CALL mysql.rds_stop_replication;" 2>&1 | tee /tmp/rds_stop.log || true
 
                     # "not running" 이외의 error는 진짜 실패
@@ -261,13 +329,13 @@ EOF
                       cat /tmp/rds_stop.log
                       exit 1
                     fi
-                    echo "✅ RDS 복제 정지 완료"
+                    echo "✅ RDS 복제 정지 완료 (RDS가 standalone primary로 승격됨)"
                 '''
 
-                // 2-4) Smoke test: ALB를 통한 애플리케이션 정상 응답 확인
+                // 2-6) Smoke test: ALB를 통한 애플리케이션 정상 응답 확인
                 sh '''
                     set +e
-                    echo "▶ 4/4: Smoke test (ALB → Spring Boot /actuator/health)"
+                    echo "▶ 6/6: Smoke test (ALB → Spring Boot /actuator/health)"
                     DOMAIN=$(grep '^route53_zone_name' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
 
                     SUCCESS=0
