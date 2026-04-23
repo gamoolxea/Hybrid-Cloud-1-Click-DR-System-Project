@@ -164,10 +164,15 @@ resource "aws_route_table_association" "public_c" {
 }
 
 ############################
-# App Route Table (인터넷 경로 없음)
+# App Route Table (NAT 경유 — Spring Boot이 GitHub Release에서 jar 다운로드 필요)
 ############################
 resource "aws_route_table" "app" {
   vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-app-rt"
