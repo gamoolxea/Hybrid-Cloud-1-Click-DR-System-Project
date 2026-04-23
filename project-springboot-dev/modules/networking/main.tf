@@ -559,11 +559,19 @@ resource "aws_security_group" "db_ec2" {
   }
 
   ingress {
-    description = "MySQL from DB subnet"
+    description = "MySQL from DB subnet (RDS replication)"
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
     cidr_blocks = ["10.0.31.0/24", "10.0.32.0/24"]
+  }
+
+  ingress {
+    description     = "MySQL from Jenkins (Phase 2 soft failover: STOP SLAVE, lag check)"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.jenkins.id]
   }
 
   ingress {

@@ -245,7 +245,7 @@ EOF
                     RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
                     cd - > /dev/null
 
-                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
 
                     LAG_READY=0
                     for i in $(seq 1 30); do
@@ -284,7 +284,7 @@ EOF
                     DB_EC2_IP=$(terraform output -raw db_ec2_private_ip)
                     cd - > /dev/null
 
-                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
 
                     echo "DB EC2: $DB_EC2_IP (user: repl_user)"
 
@@ -318,7 +318,7 @@ SQL
                     RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
                     cd - > /dev/null
 
-                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
 
                     mysql -h "$RDS_ENDPOINT" -u admin -p"$DB_PASSWORD" \
                       -e "CALL mysql.rds_stop_replication;" 2>&1 | tee /tmp/rds_stop.log || true
@@ -336,7 +336,7 @@ SQL
                 sh '''
                     set +e
                     echo "▶ 6/6: Smoke test (ALB → Spring Boot /actuator/health)"
-                    DOMAIN=$(grep '^route53_zone_name' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "')
+                    DOMAIN=$(grep '^route53_zone_name' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
 
                     SUCCESS=0
                     for i in $(seq 1 12); do
