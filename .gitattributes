@@ -1,0 +1,64 @@
+# ============================================================
+# .gitattributes — 줄 끝 문자(line endings) 통일 강제
+#
+# 목적:
+#   Windows 개발자의 core.autocrlf 설정 실수로 repo에 CRLF가 섞이는 것을 방지.
+#   특히 bash/shell script, Terraform, Ansible 같은 인프라 코드에서
+#   CRLF는 실행 실패 또는 이스케이프 오류를 유발.
+#
+# 동작:
+#   - text eol=lf   → Git이 체크아웃/커밋 시 항상 LF로 정규화 (개인 설정 무관)
+#   - binary        → Git이 텍스트로 해석하지 않음 (변환 금지)
+#   - 매칭 안 된 파일은 Git 기본값 (대부분 auto detect)
+#
+# 적용:
+#   새 파일: 이 규칙 즉시 적용
+#   기존 파일: `git add --renormalize .` 로 한 번 정규화 필요
+# ============================================================
+
+# --- Shell scripts: LF 강제 (bash가 CRLF에서 문법 에러 냄) ---
+*.sh           text eol=lf
+*.sh.tpl       text eol=lf
+*.bash         text eol=lf
+
+# --- Terraform: LF 강제 (heredoc, templatefile 등에서 CRLF는 치명적) ---
+*.tf           text eol=lf
+*.tfvars       text eol=lf
+*.hcl          text eol=lf
+
+# --- Ansible / YAML: LF (YAML 스펙상 문제는 없으나 일관성 유지) ---
+*.yml          text eol=lf
+*.yaml         text eol=lf
+*.j2           text eol=lf
+
+# --- Jenkinsfile / Groovy ---
+Jenkinsfile    text eol=lf
+*.groovy       text eol=lf
+
+# --- Python ---
+*.py           text eol=lf
+
+# --- 설정 파일 ---
+*.cfg          text eol=lf
+*.conf         text eol=lf
+*.ini          text eol=lf
+*.toml         text eol=lf
+.env*          text eol=lf
+Makefile       text eol=lf
+
+# --- 문서 (일반 텍스트 — auto 감지) ---
+*.md           text
+*.txt          text
+
+# --- 바이너리 (Git이 변환하지 않도록 명시) ---
+*.pdf          binary
+*.jar          binary
+*.zip          binary
+*.tar.gz       binary
+*.png          binary
+*.jpg          binary
+*.jpeg         binary
+*.gif          binary
+*.ico          binary
+*.pem          binary
+*.p12          binary
