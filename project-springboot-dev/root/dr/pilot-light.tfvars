@@ -8,7 +8,7 @@
 dr_mode        = false
 
 # app_ami_id → springboot_ami_id
-springboot_ami_id        = "ami-0ecd90ec6999929bf"
+springboot_ami_id        = "ami-0c8697730316c257b"
 springboot_instance_type = "t3.micro"
 
 # ASG 0으로 설정 (SpringBoot EC2 없음)
