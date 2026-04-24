@@ -361,14 +361,23 @@ SQL
 
         // ============================================================
         // 3. Phase 3 (Failback to On-Premise)
-        //    - 최신 Release asset을 Jenkins 워크스페이스로 다운로드
-        //    - Ansible이 로컬 jar을 WEBWAS에 copy
+        //    3-1. 최신 Release jar 다운로드
+        //    3-2. Ansible site.yml (온프렘 3VM 전체 프로비저닝 + jar 배포)
+        //    3-3. Jenkins가 RDS에서 mysqldump → ${WORKSPACE}/dump.sql
+        //    3-4. Ansible db_failback.yml (dump 복사 + restore + Spring Boot 재시작)
+        //    3-5. Terraform apply pilot-light.tfvars (AWS 회수: ASG=0, ALB→haproxy-tg)
+        //    3-6. Smoke test (ALB → HAProxy → onprem Spring Boot)
         // ============================================================
         stage('Execute Phase 3 (Failback to On-Premise)') {
             when { expression { params.DR_ACTION == 'Phase 3 (Failback)' } }
+            environment {
+                TF_DIR     = 'project-springboot-dev/root/dr'
+                AWS_REGION = 'ap-northeast-2'
+                CONFIG_DIR = '/etc/hybrid-dr'
+            }
             steps {
                 echo '===================================================='
-                echo '[Phase 3 시작] 온프레미스 환경으로 Failback을 준비합니다.'
+                echo '[Phase 3 시작] 온프레미스 환경으로 Failback을 진행합니다.'
                 echo '===================================================='
 
                 // 3-1) 최신 Release의 jar asset 다운로드
@@ -378,10 +387,10 @@ SQL
                         passwordVariable: 'GH_TOKEN')]) {
                     sh '''
                         set -e
+                        echo "▶ 1/6: 최신 Release jar 다운로드"
                         mkdir -p artifacts
                         rm -f ${ARTIFACT}
 
-                        echo "▶ 최신 Release 정보 조회..."
                         LATEST=$(curl -fsS \
                             -H "Authorization: token ${GH_TOKEN}" \
                             -H "Accept: application/vnd.github+json" \
@@ -396,8 +405,6 @@ SQL
                             exit 1
                         fi
 
-                        echo "▶ 다운로드: tag=${TAG}, asset_id=${ASSET_ID}"
-
                         curl -fsSL \
                             -H "Authorization: token ${GH_TOKEN}" \
                             -H "Accept: application/octet-stream" \
@@ -405,26 +412,118 @@ SQL
                             -o ${ARTIFACT}
 
                         ls -la ${ARTIFACT}
-                        echo "✅ 다운로드 완료"
+                        echo "✅ jar 다운로드 완료 (tag=${TAG})"
                     '''
                 }
 
-                // 3-2) Ansible 실행 (로컬 jar을 복사 모드로 배포)
+                // 3-2) Ansible site.yml — 온프렘 3VM 전체 프로비저닝
+                //   - common, haproxy, tailscale(haproxy만), mysql, springboot
+                //   - Spring Boot는 빈 DB 상태로 기동 (Hibernate ddl-auto=update가 스키마 생성)
+                //   - 다음 단계에서 RDS 데이터로 덮어쓸 예정
                 dir('Ansible') {
-                    script {
-                        try {
-                            echo "▶ Ansible Playbook(site.yml) 실행 - jar 복사 배포"
-                            sh '''
-                                ansible-playbook -i inventories/on-premise/hosts.yml \
-                                    playbooks/site.yml \
-                                    -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}"
-                            '''
-                            echo "▶ Phase 3 복구 완료: 서비스가 정상적으로 온프레미스로 전환되었습니다."
-                        } catch (Exception e) {
-                            error("Ansible Playbook 실행 중 오류가 발생했습니다: ${e.message}")
-                        }
-                    }
+                    sh '''
+                        set -e
+                        echo "▶ 2/6: Ansible site.yml 실행 (온프렘 3VM 재구축)"
+                        ansible-playbook -i inventories/on-premise/hosts.yml \
+                            playbooks/site.yml \
+                            -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}"
+                        echo "✅ 온프레미스 프로비저닝 완료"
+                    '''
                 }
+
+                // 3-3) Jenkins가 RDS에서 mysqldump
+                //   - --single-transaction: InnoDB 일관성 스냅샷 (lock 없이)
+                //   - --add-drop-table: restore 시 기존 빈 테이블(Hibernate 자동 생성본) 덮어쓰기
+                //   - --no-tablespaces: PROCESS 권한 없는 RDS admin 호환
+                //   - DB 이름 'appdb'만 지정 (--databases 미사용) → dump 파일에 USE/CREATE 없음
+                //     → restore 시 DB명 자유 매핑 가능 (appdb → logistics)
+                //   - MYSQL_PWD 환경변수 사용 (ps 목록 비밀번호 노출 방지)
+                sh '''
+                    set -e
+                    echo "▶ 3/6: RDS에서 mysqldump → ${WORKSPACE}/dump.sql"
+
+                    cd ${TF_DIR}
+                    RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+                    cd - > /dev/null
+
+                    DB_PASSWORD=$(grep '^db_password' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
+
+                    export MYSQL_PWD="$DB_PASSWORD"
+
+                    mysqldump \
+                        -h "$RDS_ENDPOINT" \
+                        -u admin \
+                        --single-transaction \
+                        --add-drop-table \
+                        --no-tablespaces \
+                        appdb > ${WORKSPACE}/dump.sql
+
+                    unset MYSQL_PWD
+
+                    ls -lh ${WORKSPACE}/dump.sql
+                    DUMP_LINES=$(wc -l < ${WORKSPACE}/dump.sql)
+                    echo "✅ RDS dump 완료: ${DUMP_LINES} 라인"
+                '''
+
+                // 3-4) Ansible db_failback.yml 실행
+                //   - dump.sql → onprem DB VM으로 copy (ProxyJump via HAProxy Tailscale)
+                //   - mysql logistics < dump.sql (DB 이름 매핑 appdb → logistics)
+                //   - WEBWAS Spring Boot 재시작 (HikariCP 커넥션 풀 리프레시)
+                //   - /actuator/health 200 대기
+                dir('Ansible') {
+                    sh '''
+                        set -e
+                        echo "▶ 4/6: Ansible db_failback.yml (RDS dump → onprem restore)"
+                        ansible-playbook -i inventories/on-premise/hosts.yml \
+                            playbooks/db_failback.yml \
+                            -e "dump_src=${WORKSPACE}/dump.sql"
+                        echo "✅ 온프렘 DB 복원 + Spring Boot 재시작 완료"
+                    '''
+                }
+
+                // 3-5) Terraform apply pilot-light.tfvars — AWS 회수
+                //   - dr_mode=false: ALB listener → haproxy-tg (트래픽 온프렘으로)
+                //   - ASG min/desired = 0: Spring Boot EC2 스케일 다운
+                //     → 이중 처리 방지 + 비용 절감
+                //   이 순간 ALB 플립 = 사용자 트래픽이 온프렘으로 전환됨
+                dir("${env.TF_DIR}") {
+                    sh '''
+                        set -e
+                        echo "▶ 5/6: Terraform apply pilot-light.tfvars (AWS 회수)"
+                        terraform init -reconfigure \
+                          -backend-config=${CONFIG_DIR}/backend.hcl
+                        terraform apply \
+                          -var-file=${CONFIG_DIR}/terraform.tfvars \
+                          -var-file="pilot-light.tfvars" \
+                          -auto-approve
+                        echo "✅ AWS 회수 완료: ALB → haproxy-tg, ASG=0"
+                    '''
+                }
+
+                // 3-6) Smoke test: ALB → HAProxy → onprem Spring Boot 200 확인
+                sh '''
+                    set +e
+                    echo "▶ 6/6: Smoke test (ALB → HAProxy → onprem Spring Boot)"
+                    DOMAIN=$(grep '^route53_zone_name' ${CONFIG_DIR}/terraform.tfvars | cut -d'=' -f2- | tr -d ' "\r\n')
+
+                    SUCCESS=0
+                    for i in $(seq 1 12); do
+                      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://$DOMAIN/actuator/health" || echo "000")
+                      echo "[$i/12] GET http://$DOMAIN/actuator/health -> $HTTP_CODE"
+                      if [ "$HTTP_CODE" = "200" ]; then SUCCESS=1; break; fi
+                      sleep 10
+                    done
+
+                    if [ "$SUCCESS" = "1" ]; then
+                      echo "✅ Phase 3 Failback 완료: 서비스가 온프레미스로 정상 전환됨"
+                    else
+                      echo "⚠️  WARNING: 2분 내 200 응답 없음"
+                      echo "   수동 확인: curl -v http://$DOMAIN/actuator/health"
+                      exit 1
+                    fi
+                '''
+
+                echo '▶ Phase 3 완료'
             }
         }
     }
