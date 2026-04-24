@@ -16,3 +16,9 @@ haproxy_backends:
 
 # Tailscale 인증 키 (Vault 암호화 권장)
 tailscale_authkey: "{{ vault_tailscale_authkey }}"
+
+# Tailscale Subnet Router 설정
+# HAProxy가 192.168.20.0/24 (private 서브넷) 을 Tailscale 네트워크에 광고
+# → Jenkins(Tailscale 클라이언트)가 HAProxy를 경유해 WEBWAS/DB private IP로 접근 가능
+# 이 변수가 설정되어 있으면 tailscale role이 --advertise-routes 플래그를 포함하여 실행
+tailscale_advertise_routes: "192.168.20.0/24"

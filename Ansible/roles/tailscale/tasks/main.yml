@@ -16,8 +16,19 @@
     enabled: true
 
 - name: Authenticate and connect to Tailscale network
-  ansible.builtin.command: >
-    tailscale up --authkey={{ tailscale_authkey }} --accept-routes
+  # ===========================================================
+  # tailscale_advertise_routes 변수가 설정된 호스트 (예: HAProxy)는
+  # subnet router 역할로 --advertise-routes 플래그 포함하여 실행.
+  # 미설정 호스트는 단순 Tailscale 클라이언트로만 동작.
+  #
+  # 이 플래그를 빠뜨리면 기존에 수동 설정했던 subnet router 모드가
+  # 재실행 시 해제되어 네트워크 경로가 끊어짐 (Phase 3 재현 버그 이력).
+  # ===========================================================
+  ansible.builtin.shell: >
+    tailscale up
+    --authkey={{ tailscale_authkey }}
+    --accept-routes
+    {% if (tailscale_advertise_routes | default('')) | length > 0 %}--advertise-routes={{ tailscale_advertise_routes }}{% endif %}
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout or tailscale_up.rc == 0"
   when: tailscale_authkey is defined and tailscale_authkey | length > 0
