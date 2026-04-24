@@ -153,17 +153,25 @@ EOF
                 }
 
                 dir('Ansible') {
-                    script {
-                        try {
-                            echo "▶ Ansible Playbook(webwas.yml) 실행 - Phase 1 환경 앱 배포"
-                            sh '''
-                                ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
-                                    playbooks/webwas.yml \
-                                    -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}"
-                            '''
-                            echo "▶ Phase 1 앱 배포 완료"
-                        } catch (Exception e) {
-                            error("Ansible Playbook 실행 중 오류가 발생했습니다: ${e.message}")
+                    // CloudWatch credentials 주입 (없어도 role 은 자체 skip)
+                    withCredentials([
+                        string(credentialsId: 'cloudwatch-access-key', variable: 'CW_ACCESS_KEY'),
+                        string(credentialsId: 'cloudwatch-secret-key', variable: 'CW_SECRET_KEY')
+                    ]) {
+                        script {
+                            try {
+                                echo "▶ Ansible Playbook(webwas.yml) 실행 - Phase 1 환경 앱 배포 + CloudWatch Agent"
+                                sh '''
+                                    ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
+                                        playbooks/webwas.yml \
+                                        -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}" \
+                                        -e "cloudwatch_access_key=${CW_ACCESS_KEY}" \
+                                        -e "cloudwatch_secret_key=${CW_SECRET_KEY}"
+                                '''
+                                echo "▶ Phase 1 앱 배포 완료"
+                            } catch (Exception e) {
+                                error("Ansible Playbook 실행 중 오류가 발생했습니다: ${e.message}")
+                            }
                         }
                     }
                 }
@@ -416,19 +424,28 @@ SQL
                     '''
                 }
 
-                // 3-2) Ansible site.yml — 온프렘 3VM 전체 프로비저닝
-                //   - common, haproxy, tailscale(haproxy만), mysql, springboot
+                // 3-2) Ansible site.yml — 온프렘 3VM 전체 프로비저닝 + CloudWatch Agent
+                //   - common, haproxy, tailscale(haproxy만), mysql, springboot, cloudwatch-agent
                 //   - Spring Boot는 빈 DB 상태로 기동 (Hibernate ddl-auto=update가 스키마 생성)
                 //   - 다음 단계에서 RDS 데이터로 덮어쓸 예정
+                //   - CloudWatch Agent 가 설치되어 Failback 이후 다시 메트릭 송신 시작
+                //     → CloudWatch heartbeat-loss 알람이 OK 로 돌아감 (서비스 복구 확인 신호)
                 dir('Ansible') {
-                    sh '''
-                        set -e
-                        echo "▶ 2/6: Ansible site.yml 실행 (온프렘 3VM 재구축)"
-                        ansible-playbook -i inventories/on-premise/hosts.yml \
-                            playbooks/site.yml \
-                            -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}"
-                        echo "✅ 온프레미스 프로비저닝 완료"
-                    '''
+                    withCredentials([
+                        string(credentialsId: 'cloudwatch-access-key', variable: 'CW_ACCESS_KEY'),
+                        string(credentialsId: 'cloudwatch-secret-key', variable: 'CW_SECRET_KEY')
+                    ]) {
+                        sh '''
+                            set -e
+                            echo "▶ 2/6: Ansible site.yml 실행 (온프렘 3VM 재구축 + CloudWatch Agent)"
+                            ansible-playbook -i inventories/on-premise/hosts.yml \
+                                playbooks/site.yml \
+                                -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}" \
+                                -e "cloudwatch_access_key=${CW_ACCESS_KEY}" \
+                                -e "cloudwatch_secret_key=${CW_SECRET_KEY}"
+                            echo "✅ 온프레미스 프로비저닝 완료"
+                        '''
+                    }
                 }
 
                 // 3-3) Jenkins가 RDS에서 mysqldump

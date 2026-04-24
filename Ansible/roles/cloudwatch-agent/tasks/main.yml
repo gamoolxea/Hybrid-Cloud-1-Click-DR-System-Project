@@ -1,0 +1,65 @@
+---
+# ============================================================
+# CloudWatch Agent 설치 및 설정 (온프레미스 모드)
+#
+# 목적: 온프렘 VM의 CPU/Memory/Disk/Process 메트릭을 AWS CloudWatch 로 push.
+#       AWS 의 disaster detection 경로 구축.
+#
+# 전제:
+#   - VM 은 인터넷에 나갈 수 있어야 함 (CloudWatch API 는 public endpoint)
+#   - IAM access key/secret 는 -e 로 주입 (기본값 empty → role 자체가 skip)
+# ============================================================
+
+- name: Skip CloudWatch Agent installation if no credentials
+  ansible.builtin.meta: end_host
+  when: (cloudwatch_access_key | length) == 0 or (cloudwatch_secret_key | length) == 0
+
+- name: Install CloudWatch Agent RPM
+  ansible.builtin.dnf:
+    name: "{{ cloudwatch_agent_rpm_url }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Deploy common-config.toml (credential file 위치 지정)
+  ansible.builtin.template:
+    src: common-config.toml.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/common-config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart CloudWatch Agent
+
+- name: Deploy AWS credentials file (for CloudWatch Agent only)
+  ansible.builtin.template:
+    src: credentials.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/credentials
+    owner: cwagent
+    group: cwagent
+    mode: "0600"
+  notify: Restart CloudWatch Agent
+  no_log: true   # 로그에 secret 노출 방지
+
+- name: Deploy CloudWatch Agent config JSON
+  ansible.builtin.template:
+    src: amazon-cloudwatch-agent.json.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart CloudWatch Agent
+
+- name: Load CloudWatch Agent config + start (first-time setup)
+  ansible.builtin.command: >
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+    -a fetch-config
+    -m onPremise
+    -s
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+  register: cw_fetch_config
+  changed_when: "'Configuration validation' in cw_fetch_config.stdout or cw_fetch_config.rc == 0"
+
+- name: Ensure CloudWatch Agent service enabled at boot
+  ansible.builtin.systemd:
+    name: amazon-cloudwatch-agent
+    enabled: true
+    state: started

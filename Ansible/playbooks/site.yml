@@ -31,3 +31,12 @@
   hosts: webwas
   roles:
     - springboot
+
+# ============================================================
+# CloudWatch Agent - 모든 온프렘 호스트에 설치 (Disaster detection)
+# cloudwatch_access_key/secret 이 비어있으면 role 자체가 end_host 로 skip.
+# ============================================================
+- name: "[Phase 3] CloudWatch Agent - 모든 호스트에 메트릭 에이전트 설치"
+  hosts: all
+  roles:
+    - cloudwatch-agent

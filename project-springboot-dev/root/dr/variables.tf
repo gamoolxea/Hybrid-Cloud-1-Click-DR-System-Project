@@ -218,3 +218,11 @@ variable "route53_zone_name" {
   type        = string
 }
 
+############################
+# Monitoring (CloudWatch)
+############################
+variable "alert_email" {
+  description = "Disaster 알람을 받을 관리자 이메일 주소 (SNS subscription)"
+  type        = string
+}
+

@@ -1,0 +1,12 @@
+# ============================================================
+# CloudWatch Agent common-config.toml
+# (Ansible 이 관리 — 수동 편집 금지)
+#
+# 이 파일은 agent 가 어디서 AWS credentials 을 읽을지 지정.
+# 기본 경로 대신 /opt/aws/amazon-cloudwatch-agent/etc/credentials 사용 —
+# root의 ~/.aws/credentials 과 격리.
+# ============================================================
+
+[credentials]
+   shared_credential_profile = "AmazonCloudWatchAgent"
+   shared_credential_file = "/opt/aws/amazon-cloudwatch-agent/etc/credentials"

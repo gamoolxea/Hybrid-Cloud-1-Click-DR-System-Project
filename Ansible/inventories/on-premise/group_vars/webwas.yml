@@ -23,3 +23,10 @@ spring_boot_db_port: 3306
 spring_boot_db_name: logistics
 spring_boot_db_user: logistics_user
 spring_boot_db_password: "{{ vault_db_app_password }}"
+
+# ===========================================================
+# CloudWatch Agent: WEBWAS 만 Spring Boot 프로세스 모니터링 활성화
+# (다른 호스트는 defaults 의 false 유지 — procstat 블록 생략됨)
+# ===========================================================
+cloudwatch_enable_procstat: true
+cloudwatch_procstat_pattern: "logistics-system.jar"

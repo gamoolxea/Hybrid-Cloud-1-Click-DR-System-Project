@@ -1,0 +1,32 @@
+---
+# ============================================================
+# CloudWatch Agent role — 기본값
+#
+# 이 변수들은 defaults이므로 group_vars/host_vars 로 오버라이드 가능.
+# IAM access key/secret 는 반드시 Vault 또는 -e 로 주입 (기본값 비움).
+# ============================================================
+
+# AWS 리전 + 메트릭 namespace
+cloudwatch_region: "ap-northeast-2"
+cloudwatch_namespace: "HybridDR/OnPrem"
+
+# 메트릭 수집 주기 (초)
+cloudwatch_metrics_interval: 60
+
+# CloudWatch Agent RPM 다운로드 URL (Rocky 9 / RHEL 9 / AL2023 호환)
+cloudwatch_agent_rpm_url: "https://s3.amazonaws.com/amazoncloudwatch-agent/redhat/amd64/latest/amazon-cloudwatch-agent.rpm"
+
+# AWS IAM 자격증명 (빈 값이면 role 스킵)
+# 실전에서는 -e 또는 vault 로 주입:
+#   ansible-playbook ... -e "cloudwatch_access_key=AKIA..." -e "cloudwatch_secret_key=..."
+cloudwatch_access_key: ""
+cloudwatch_secret_key: ""
+
+# hostname dimension 에 쓸 이름 (기본값: Ansible inventory_hostname)
+# webwas/db/haproxy 각각 "on-prem-webwas", "on-prem-db", "on-prem-haproxy" 가 됨
+cloudwatch_hostname: "{{ inventory_hostname }}"
+
+# Spring Boot process 모니터링 활성화 여부
+# WEBWAS 에서만 true (group_vars/webwas.yml 에서 오버라이드)
+cloudwatch_enable_procstat: false
+cloudwatch_procstat_pattern: "logistics-system.jar"

@@ -182,3 +182,18 @@ resource "aws_route53_record" "www" {
     evaluate_target_health = true
   }
 }
+
+############################
+# Module: Monitoring (CloudWatch + SNS + Alarms)
+############################
+# 온프렘 VM의 CloudWatch Agent 가 push 하는 메트릭을 받아
+# Disaster 알람을 관리자 이메일로 발송.
+# Phase 2 Failover 의 "자동 감지" 계층.
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_name = var.project_name
+  common_tags  = local.common_tags
+  aws_region   = var.aws_region
+  alert_email  = var.alert_email
+}

@@ -1,0 +1,59 @@
+{
+  "agent": {
+    "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+    "run_as_user": "cwagent"
+  },
+  "metrics": {
+    "namespace": "{{ cloudwatch_namespace }}",
+    "append_dimensions": {
+      "hostname": "{{ cloudwatch_hostname }}"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [
+          "cpu_usage_idle",
+          "cpu_usage_iowait",
+          "cpu_usage_user",
+          "cpu_usage_system"
+        ],
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+        "totalcpu": true
+      },
+      "mem": {
+        "measurement": [
+          "mem_used_percent",
+          "mem_available_percent",
+          "mem_used",
+          "mem_total"
+        ],
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+      },
+      "disk": {
+        "measurement": [
+          "used_percent",
+          "inodes_free"
+        ],
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+        "resources": [
+          "/"
+        ]
+      },
+      "netstat": {
+        "measurement": [
+          "tcp_established",
+          "tcp_time_wait"
+        ],
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+      }{% if cloudwatch_enable_procstat %},
+      "procstat": [
+        {
+          "pattern": "{{ cloudwatch_procstat_pattern }}",
+          "measurement": [
+            "pid_count"
+          ],
+          "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+        }
+      ]{% endif %}
+    }
+  }
+}
