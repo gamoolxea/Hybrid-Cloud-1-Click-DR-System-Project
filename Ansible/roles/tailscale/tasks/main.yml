@@ -43,3 +43,30 @@
   loop:
     - net.ipv4.ip_forward
     - net.ipv6.conf.all.forwarding
+
+- name: Add tailscale0 interface to firewalld trusted zone (subnet router 전용)
+  # ===========================================================
+  # subnet router 호스트에서 firewalld가 tailscale0 forwarding
+  # 트래픽을 차단하는 문제를 방지.
+  #
+  # 문제 배경:
+  #   - Tailscale의 `tailscale up --advertise-routes=...`는 iptables FORWARD 체인에
+  #     `ts-forward` 룰을 추가하지만, firewalld의 zone 기반 필터링과 충돌 가능
+  #   - 결과: Jenkins → HAProxy → LAN VM 으로의 SSH 포워딩이
+  #     "No route to host" 또는 "kex_exchange_identification: Connection closed"
+  #     로 실패 (2026-04-24 재현 버그)
+  #
+  # 해결:
+  #   - tailscale0 을 firewalld의 `trusted` zone 에 등록하면
+  #     해당 인터페이스 트래픽은 firewalld 필터링에서 완전히 제외됨
+  #   - Tailscale 공식 문서의 권장 설정
+  #
+  # 조건: tailscale_advertise_routes 변수가 설정된 호스트만 (= subnet router 역할)
+  # ===========================================================
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: tailscale0
+    permanent: true
+    immediate: true
+    state: enabled
+  when: (tailscale_advertise_routes | default('')) | length > 0
