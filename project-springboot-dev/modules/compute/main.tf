@@ -164,6 +164,10 @@ resource "aws_instance" "haproxy" {
   vpc_security_group_ids = [var.haproxy_sg_id]
   key_name               = var.key_name
 
+  # user_data 변경 시 EC2 자동 재생성 (in-place update 안 함)
+  # 이게 없으면 user_data 고쳐도 기존 인스턴스는 그대로 — boot 시만 실행되는 스크립트라서.
+  user_data_replace_on_change = true
+
   user_data = <<-EOF
 #!/bin/bash
 dnf update -y
@@ -192,7 +196,10 @@ frontend http_front
 backend onprem_back
     balance roundrobin
     option  httpchk GET /actuator/health
-    server  onprem 100.79.94.82:8080 check
+    # onprem Spring Boot WEBWAS 직접 지정.
+    # AWS HAProxy는 Tailscale 클라이언트로서 subnet router(onprem HAProxy 100.101.249.121)가
+    # advertise하는 192.168.20.0/24 route를 accept하므로 이 주소로 도달 가능.
+    server  onprem 192.168.20.12:8080 check
 HAPROXY
 systemctl enable haproxy
 systemctl restart haproxy
