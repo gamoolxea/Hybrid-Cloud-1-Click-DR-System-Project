@@ -1,0 +1,27 @@
+---
+# ============================================================
+# cloudwatch-only.yml — CloudWatch Agent 만 단독 설치
+#
+# 용도:
+#   이미 운영 중인 온프렘 VM (Phase 1 환경 등) 에 서비스 재시작 없이
+#   agent 만 추가 설치. common/mysql/springboot 등 다른 role 건드리지 않음.
+#
+# 실행:
+#   # Phase 1 환경 (on-premise-phase1 inventory)
+#   ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
+#     playbooks/cloudwatch-only.yml \
+#     -e "cloudwatch_access_key=AKIA..." \
+#     -e "cloudwatch_secret_key=..."
+#
+#   # Phase 3 환경 (on-premise inventory)
+#   ansible-playbook -i inventories/on-premise/hosts.yml \
+#     playbooks/cloudwatch-only.yml \
+#     -e "cloudwatch_access_key=..." \
+#     -e "cloudwatch_secret_key=..."
+# ============================================================
+
+- name: "CloudWatch Agent 설치/설정 (모든 온프렘 호스트)"
+  hosts: all
+  become: true
+  roles:
+    - cloudwatch-agent
