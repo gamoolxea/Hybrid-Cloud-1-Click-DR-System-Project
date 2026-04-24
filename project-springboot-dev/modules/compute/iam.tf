@@ -184,6 +184,47 @@ resource "aws_iam_role_policy" "jenkins_dr_control" {
         Resource = "*"
       },
 
+      # [5-B] SNS + CloudWatch Monitoring 리소스 관리
+      # Terraform 이 SNS topic/subscription, CloudWatch Alarm, Dashboard 생성/변경/삭제.
+      # Task 4 (Monitoring) 도입으로 추가됨.
+      {
+        Sid    = "MonitoringResourcesManage"
+        Effect = "Allow"
+        Action = [
+          "sns:CreateTopic",
+          "sns:DeleteTopic",
+          "sns:GetTopicAttributes",
+          "sns:SetTopicAttributes",
+          "sns:ListTopics",
+          "sns:Subscribe",
+          "sns:Unsubscribe",
+          "sns:ConfirmSubscription",
+          "sns:ListSubscriptions",
+          "sns:ListSubscriptionsByTopic",
+          "sns:GetSubscriptionAttributes",
+          "sns:SetSubscriptionAttributes",
+          "sns:TagResource",
+          "sns:UntagResource",
+          "sns:ListTagsForResource",
+          "sns:Publish",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:DescribeAlarmsForMetric",
+          "cloudwatch:GetMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics",
+          "cloudwatch:PutDashboard",
+          "cloudwatch:GetDashboard",
+          "cloudwatch:DeleteDashboards",
+          "cloudwatch:ListDashboards",
+          "cloudwatch:TagResource",
+          "cloudwatch:UntagResource",
+          "cloudwatch:ListTagsForResource"
+        ]
+        Resource = "*"
+      },
+
       # [6] IAM 관리 (project-* 범위 제한, 계정 장악 방지)
       {
         Sid    = "IAMManageProjectResources"
