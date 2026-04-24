@@ -79,3 +79,53 @@ variable "memory_threshold_percent" {
   type        = number
   default     = 85
 }
+
+############################
+# AWS 측 알람용 ARN suffix 및 식별자
+############################
+variable "alb_arn_suffix" {
+  description = "ALB ARN suffix (CloudWatch LoadBalancer dimension 형식)"
+  type        = string
+}
+
+variable "haproxy_tg_arn_suffix" {
+  description = "HAProxy TG ARN suffix"
+  type        = string
+}
+
+variable "springboot_tg_arn_suffix" {
+  description = "SpringBoot TG ARN suffix"
+  type        = string
+}
+
+variable "rds_identifier" {
+  description = "RDS DB instance identifier (DBInstanceIdentifier dimension)"
+  type        = string
+}
+
+############################
+# AWS 측 알람 임계값
+############################
+variable "rds_cpu_threshold" {
+  description = "RDS CPU 경고 임계값 (%)"
+  type        = number
+  default     = 90
+}
+
+variable "rds_connections_threshold" {
+  description = "RDS 동시 연결 수 경고 임계값"
+  type        = number
+  default     = 150
+}
+
+variable "rds_storage_low_bytes" {
+  description = "RDS 남은 스토리지 경고 임계값 (바이트, 기본 2GB)"
+  type        = number
+  default     = 2147483648  # 2 * 1024^3
+}
+
+variable "alb_5xx_threshold" {
+  description = "ALB target 5xx 에러 1분 내 임계값 (건)"
+  type        = number
+  default     = 5
+}

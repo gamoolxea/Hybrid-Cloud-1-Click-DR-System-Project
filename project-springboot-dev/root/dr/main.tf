@@ -186,8 +186,8 @@ resource "aws_route53_record" "www" {
 ############################
 # Module: Monitoring (CloudWatch + SNS + Alarms)
 ############################
-# 온프렘 VM의 CloudWatch Agent 가 push 하는 메트릭을 받아
-# Disaster 알람을 관리자 이메일로 발송.
+# 온프렘 VM의 CloudWatch Agent 가 push 하는 메트릭 + AWS 자동 메트릭 (ALB/RDS)
+# 을 통합 감시. Disaster 감지 시 SNS 로 관리자 이메일 발송.
 # Phase 2 Failover 의 "자동 감지" 계층.
 module "monitoring" {
   source = "../../modules/monitoring"
@@ -196,4 +196,10 @@ module "monitoring" {
   common_tags  = local.common_tags
   aws_region   = var.aws_region
   alert_email  = var.alert_email
+
+  # AWS 측 알람용 ARN suffix (CloudWatch dimension 형식)
+  alb_arn_suffix           = module.compute.alb_arn_suffix
+  haproxy_tg_arn_suffix    = module.compute.haproxy_tg_arn_suffix
+  springboot_tg_arn_suffix = module.compute.springboot_tg_arn_suffix
+  rds_identifier           = module.database.rds_identifier
 }

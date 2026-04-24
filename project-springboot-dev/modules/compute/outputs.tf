@@ -21,6 +21,11 @@ output "alb_listener_arn" {
   value       = aws_lb_listener.http.arn
 }
 
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix (CloudWatch metric dimension 'LoadBalancer' 형식: app/name/hash)"
+  value       = aws_lb.app.arn_suffix
+}
+
 ############################
 # Target Group Outputs
 ############################
@@ -32,6 +37,16 @@ output "springboot_tg_arn" {
 output "haproxy_tg_arn" {
   description = "HAProxy Target Group ARN (평상시 트래픽 TG, Health 체크)"
   value       = aws_lb_target_group.haproxy.arn
+}
+
+output "springboot_tg_arn_suffix" {
+  description = "SpringBoot TG ARN suffix (CloudWatch metric dimension 'TargetGroup')"
+  value       = aws_lb_target_group.springboot.arn_suffix
+}
+
+output "haproxy_tg_arn_suffix" {
+  description = "HAProxy TG ARN suffix (CloudWatch metric dimension 'TargetGroup')"
+  value       = aws_lb_target_group.haproxy.arn_suffix
 }
 
 ############################
