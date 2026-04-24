@@ -5,9 +5,6 @@
   },
   "metrics": {
     "namespace": "{{ cloudwatch_namespace }}",
-    "append_dimensions": {
-      "hostname": "{{ cloudwatch_hostname }}"
-    },
     "metrics_collected": {
       "cpu": {
         "measurement": [
@@ -17,7 +14,10 @@
           "cpu_usage_system"
         ],
         "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
-        "totalcpu": true
+        "totalcpu": true,
+        "append_dimensions": {
+          "hostname": "{{ cloudwatch_hostname }}"
+        }
       },
       "mem": {
         "measurement": [
@@ -26,7 +26,10 @@
           "mem_used",
           "mem_total"
         ],
-        "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+        "append_dimensions": {
+          "hostname": "{{ cloudwatch_hostname }}"
+        }
       },
       "disk": {
         "measurement": [
@@ -36,14 +39,20 @@
         "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
         "resources": [
           "/"
-        ]
+        ],
+        "append_dimensions": {
+          "hostname": "{{ cloudwatch_hostname }}"
+        }
       },
       "netstat": {
         "measurement": [
           "tcp_established",
           "tcp_time_wait"
         ],
-        "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+        "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+        "append_dimensions": {
+          "hostname": "{{ cloudwatch_hostname }}"
+        }
       }{% if cloudwatch_enable_procstat %},
       "procstat": [
         {
@@ -51,7 +60,10 @@
           "measurement": [
             "pid_count"
           ],
-          "metrics_collection_interval": {{ cloudwatch_metrics_interval }}
+          "metrics_collection_interval": {{ cloudwatch_metrics_interval }},
+          "append_dimensions": {
+            "hostname": "{{ cloudwatch_hostname }}"
+          }
         }
       ]{% endif %}
     }
