@@ -77,3 +77,21 @@ output "bastion_public_ip" {
   description = "Bastion 퍼블릭 IP (Private EC2 SSH 점프)"
   value       = module.compute.bastion_public_ip
 }
+
+############################
+# Monitoring (CloudWatch + SNS)
+############################
+output "dashboard_url" {
+  description = "CloudWatch Dashboard URL (발표 시연용)"
+  value       = module.monitoring.dashboard_url
+}
+
+output "sns_topic_arn" {
+  description = "DR alert SNS topic ARN (publish 테스트 / Slack subscription 추가용)"
+  value       = module.monitoring.sns_topic_arn
+}
+
+output "alarm_names" {
+  description = "생성된 CloudWatch 알람 이름 리스트"
+  value       = module.monitoring.alarm_names
+}
