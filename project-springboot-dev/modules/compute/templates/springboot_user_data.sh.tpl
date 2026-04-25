@@ -38,6 +38,10 @@ export SPRING_DATASOURCE_PASSWORD="${db_password}"
 export SPRING_PROFILES_ACTIVE="prod"
 export SERVER_PORT=8080
 
+# DR 화면 표시 기능: SystemStatusController 가 이 값으로 "DR ACTIVE" 배지 + 상단 배너 표시
+# AWS Phase 2 환경은 항상 DR 모드이므로 aws-dr 고정
+export APP_ENV="aws-dr"
+
 ############################
 # AMI의 런타임 주입 스크립트 호출
 # → env 파일 write + systemctl restart myapp + /actuator/health 대기

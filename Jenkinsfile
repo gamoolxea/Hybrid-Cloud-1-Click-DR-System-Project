@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        REPO        = 'Soldesk-Cloud/hybrid-cloud-dr-infra'
-        APP_DIR     = 'app'
-        JAR_NAME    = 'logistics-system.jar'
-        ARTIFACT    = "artifacts/logistics-system.jar"
+        REPO                = 'Soldesk-Cloud/inventory-app'
+        RELEASE_ASSET_NAME  = 'app.jar'
+        JAR_NAME            = 'logistics-system.jar'
+        ARTIFACT            = "artifacts/logistics-system.jar"
     }
 
     parameters {
@@ -13,7 +13,6 @@ pipeline {
             name: 'DR_ACTION',
             choices: [
                 'Select Action',
-                'Build & Release App',
                 'Phase 1 (Deploy App to On-Premise)',
                 'Phase 2 (Failover)',
                 'Phase 3 (Failback)'
@@ -39,74 +38,10 @@ pipeline {
         }
 
         // ============================================================
-        // 1. Spring Boot 빌드 + GitHub Release 생성
-        // ============================================================
-        stage('Build & Release App') {
-            when { expression { params.DR_ACTION == 'Build & Release App' } }
-            steps {
-                echo '===================================================='
-                echo '[Build & Release] Spring Boot 앱 빌드 및 GitHub Release 생성'
-                echo '===================================================='
-
-                dir("${env.APP_DIR}") {
-                    sh '''
-                        set -e
-                        java -version
-                        chmod +x gradlew
-                        ./gradlew clean bootJar
-                        ls -la build/libs/
-                    '''
-                }
-
-                withCredentials([usernamePassword(
-                        credentialsId: 'github-pat',
-                        usernameVariable: 'GH_USER',
-                        passwordVariable: 'GH_TOKEN')]) {
-                    script {
-                        def tag = "app-${new Date().format('yyyyMMdd-HHmmss')}-b${env.BUILD_NUMBER}"
-                        env.RELEASE_TAG = tag
-                    }
-                    sh '''
-                        set -e
-                        echo "▶ Release 생성: ${RELEASE_TAG}"
-
-                        cat > release-payload.json <<EOF
-{
-  "tag_name": "${RELEASE_TAG}",
-  "name": "${RELEASE_TAG}",
-  "target_commitish": "main",
-  "body": "logistics-system build #${BUILD_NUMBER} (Jenkins)"
-}
-EOF
-
-                        RESP=$(curl -fsS -X POST \
-                            -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Accept: application/vnd.github+json" \
-                            "https://api.github.com/repos/${REPO}/releases" \
-                            --data @release-payload.json)
-
-                        UPLOAD_URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['upload_url'].split('{')[0])")
-                        RELEASE_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-
-                        echo "▶ jar 업로드 중... (release_id=${RELEASE_ID})"
-
-                        curl -fsS -X POST \
-                            -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Content-Type: application/java-archive" \
-                            --data-binary @${APP_DIR}/build/libs/${JAR_NAME} \
-                            "${UPLOAD_URL}?name=${JAR_NAME}" > upload-resp.json
-
-                        ASSET_URL=$(python3 -c "import json; print(json.load(open('upload-resp.json'))['browser_download_url'])")
-                        echo "✅ Release 완료: ${ASSET_URL}"
-                    '''
-                }
-            }
-        }
-
-        // ============================================================
-        // 1-B. Phase 1 (App Only Deploy to On-Premise)
+        // 1. Phase 1 (App Only Deploy to On-Premise)
         //      - 이미 구축된 Phase 1 온프레미스 환경에 jar만 배포
         //      - HAProxy/DB 재프로비저닝 없이 webwas.yml만 실행
+        //      - 새 jar 가 필요하면 팀원이 inventory-app 레포에 Release publish
         // ============================================================
         stage('Execute Phase 1 (Deploy App to On-Premise)') {
             when { expression { params.DR_ACTION == 'Phase 1 (Deploy App to On-Premise)' } }
@@ -131,11 +66,11 @@ EOF
                             "https://api.github.com/repos/${REPO}/releases/latest")
 
                         TAG=$(echo "$LATEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${JAR_NAME}']; print(xs[0]['id'] if xs else '')")
+                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${RELEASE_ASSET_NAME}']; print(xs[0]['id'] if xs else '')")
 
                         if [ -z "$ASSET_ID" ]; then
-                            echo "❌ ERROR: 최신 Release(${TAG})에 ${JAR_NAME} asset이 없습니다."
-                            echo "   먼저 'Build & Release App'을 실행해 주세요."
+                            echo "❌ ERROR: 최신 Release(${TAG})에 ${RELEASE_ASSET_NAME} asset이 없습니다."
+                            echo "   팀원에게 inventory-app 레포에 새 Release publish 를 요청하세요."
                             exit 1
                         fi
 
@@ -165,6 +100,7 @@ EOF
                                     ansible-playbook -i inventories/on-premise-phase1/hosts.yml \
                                         playbooks/webwas.yml \
                                         -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}" \
+                                        -e "app_env=prod" \
                                         -e "cloudwatch_access_key=${CW_ACCESS_KEY}" \
                                         -e "cloudwatch_secret_key=${CW_SECRET_KEY}"
                                 '''
@@ -405,11 +341,11 @@ SQL
                             "https://api.github.com/repos/${REPO}/releases/latest")
 
                         TAG=$(echo "$LATEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${JAR_NAME}']; print(xs[0]['id'] if xs else '')")
+                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${RELEASE_ASSET_NAME}']; print(xs[0]['id'] if xs else '')")
 
                         if [ -z "$ASSET_ID" ]; then
-                            echo "❌ ERROR: 최신 Release(${TAG})에 ${JAR_NAME} asset이 없습니다."
-                            echo "   먼저 'Build & Release App'을 실행해 주세요."
+                            echo "❌ ERROR: 최신 Release(${TAG})에 ${RELEASE_ASSET_NAME} asset이 없습니다."
+                            echo "   팀원에게 inventory-app 레포에 새 Release publish 를 요청하세요."
                             exit 1
                         fi
 
@@ -441,6 +377,7 @@ SQL
                             ansible-playbook -i inventories/on-premise/hosts.yml \
                                 playbooks/site.yml \
                                 -e "spring_boot_jar_src=${WORKSPACE}/${ARTIFACT}" \
+                                -e "app_env=prod" \
                                 -e "cloudwatch_access_key=${CW_ACCESS_KEY}" \
                                 -e "cloudwatch_secret_key=${CW_SECRET_KEY}"
                             echo "✅ 온프레미스 프로비저닝 완료"
@@ -545,17 +482,4 @@ SQL
         }
     }
 
-    post {
-        success {
-            script {
-                if (params.DR_ACTION == 'Build & Release App') {
-                    echo "✅ Release 생성 성공: ${env.RELEASE_TAG}"
-                }
-            }
-        }
-        cleanup {
-            // 민감 파일 정리
-            sh 'rm -f release-payload.json upload-resp.json || true'
-        }
-    }
 }

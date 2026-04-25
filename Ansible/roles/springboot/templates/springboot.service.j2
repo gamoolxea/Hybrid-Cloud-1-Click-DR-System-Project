@@ -8,6 +8,12 @@ User={{ spring_boot_user }}
 Group={{ spring_boot_group }}
 WorkingDirectory={{ spring_boot_app_dir }}
 
+# DR 화면 표시 기능: SystemStatusController가 System.getenv("APP_ENV") 로 모드 판별
+# - prod / 값없음 → "운영" 배지
+# - dr / failover / aws-dr → "DR ACTIVE" 배지 + 상단 배너
+# 온프렘 (Phase 1, Phase 3) 은 항상 prod, AWS (Phase 2) 는 user_data 에서 aws-dr 로 export
+Environment="APP_ENV={{ app_env | default('prod') }}"
+
 ExecStart=/usr/bin/java \
   {{ spring_boot_jvm_opts }} \
   -jar {{ spring_boot_app_dir }}/{{ spring_boot_jar_name }} \
