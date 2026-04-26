@@ -20,8 +20,8 @@ spring_boot_jvm_opts: "-Xms512m -Xmx1024m"
 # DB 연결 정보
 spring_boot_db_host: 192.168.20.20
 spring_boot_db_port: 3306
-spring_boot_db_name: logistics
-spring_boot_db_user: logistics_user
+spring_boot_db_name: inventory
+spring_boot_db_user: app_user
 spring_boot_db_password: "{{ vault_db_app_password }}"
 
 # ===========================================================

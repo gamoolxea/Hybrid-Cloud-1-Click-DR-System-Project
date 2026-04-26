@@ -32,9 +32,11 @@ chmod 750 /opt/myapp/app/app.jar
 ############################
 # 런타임 env 변수 (inject_runtime_config.sh가 읽음)
 ############################
-export SPRING_DATASOURCE_URL="jdbc:mysql://${db_url}:3306/appdb?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true"
-export SPRING_DATASOURCE_USERNAME="${db_username}"
-export SPRING_DATASOURCE_PASSWORD="${db_password}"
+export SPRING_DATASOURCE_URL="jdbc:mysql://${db_url}:3306/inventory?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true"
+# App 레포 (Soldesk-Cloud/App) application.yml 기준의 app_user / Soldesk1. 사용
+# (var.db_username / var.db_password 는 RDS admin 용이라 분리됨)
+export SPRING_DATASOURCE_USERNAME="app_user"
+export SPRING_DATASOURCE_PASSWORD="Soldesk1."
 export SPRING_PROFILES_ACTIVE="prod"
 export SERVER_PORT=8080
 

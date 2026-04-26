@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        REPO                = 'Soldesk-Cloud/inventory-app'
-        RELEASE_ASSET_NAME  = 'app.jar'
+        REPO                = 'Soldesk-Cloud/App'
+        JAR_RAW_URL         = 'https://raw.githubusercontent.com/Soldesk-Cloud/App/main/release/app.jar'
         JAR_NAME            = 'logistics-system.jar'
         ARTIFACT            = "artifacts/logistics-system.jar"
     }
@@ -59,28 +59,11 @@ pipeline {
                         mkdir -p artifacts
                         rm -f ${ARTIFACT}
 
-                        echo "▶ 최신 Release 정보 조회..."
-                        LATEST=$(curl -fsS \
-                            -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Accept: application/vnd.github+json" \
-                            "https://api.github.com/repos/${REPO}/releases/latest")
-
-                        TAG=$(echo "$LATEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${RELEASE_ASSET_NAME}']; print(xs[0]['id'] if xs else '')")
-
-                        if [ -z "$ASSET_ID" ]; then
-                            echo "❌ ERROR: 최신 Release(${TAG})에 ${RELEASE_ASSET_NAME} asset이 없습니다."
-                            echo "   팀원에게 inventory-app 레포에 새 Release publish 를 요청하세요."
-                            exit 1
-                        fi
-
-                        echo "▶ 다운로드: tag=${TAG}, asset_id=${ASSET_ID}"
-
+                        echo "▶ App 레포 main 브랜치 raw URL 에서 jar 다운로드"
                         curl -fsSL \
                             -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Accept: application/octet-stream" \
-                            "https://api.github.com/repos/${REPO}/releases/assets/${ASSET_ID}" \
-                            -o ${ARTIFACT}
+                            -o ${ARTIFACT} \
+                            "${JAR_RAW_URL}"
 
                         ls -la ${ARTIFACT}
                         echo "✅ 다운로드 완료"
@@ -331,32 +314,17 @@ SQL
                         passwordVariable: 'GH_TOKEN')]) {
                     sh '''
                         set -e
-                        echo "▶ 1/6: 최신 Release jar 다운로드"
+                        echo "▶ 1/6: App 레포 main 브랜치 raw URL 에서 jar 다운로드"
                         mkdir -p artifacts
                         rm -f ${ARTIFACT}
 
-                        LATEST=$(curl -fsS \
-                            -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Accept: application/vnd.github+json" \
-                            "https://api.github.com/repos/${REPO}/releases/latest")
-
-                        TAG=$(echo "$LATEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-                        ASSET_ID=$(echo "$LATEST" | python3 -c "import sys,json; r=json.load(sys.stdin); xs=[a for a in r['assets'] if a['name']=='${RELEASE_ASSET_NAME}']; print(xs[0]['id'] if xs else '')")
-
-                        if [ -z "$ASSET_ID" ]; then
-                            echo "❌ ERROR: 최신 Release(${TAG})에 ${RELEASE_ASSET_NAME} asset이 없습니다."
-                            echo "   팀원에게 inventory-app 레포에 새 Release publish 를 요청하세요."
-                            exit 1
-                        fi
-
                         curl -fsSL \
                             -H "Authorization: token ${GH_TOKEN}" \
-                            -H "Accept: application/octet-stream" \
-                            "https://api.github.com/repos/${REPO}/releases/assets/${ASSET_ID}" \
-                            -o ${ARTIFACT}
+                            -o ${ARTIFACT} \
+                            "${JAR_RAW_URL}"
 
                         ls -la ${ARTIFACT}
-                        echo "✅ jar 다운로드 완료 (tag=${TAG})"
+                        echo "✅ jar 다운로드 완료"
                     '''
                 }
 

@@ -23,4 +23,4 @@ app_service_name: logistics
 # ===========================================================
 vault_tailscale_authkey: "already-configured"
 vault_mysql_root_password: "Qwer1234!"
-vault_db_app_password: "Qwer1234!"
+vault_db_app_password: "Soldesk1."
