@@ -12,18 +12,20 @@ mysql_datadir: /var/lib/mysql
 # 인증 (Vault 암호화 권장)
 mysql_root_password: "{{ vault_mysql_root_password }}"
 
-# 데이터베이스 생성
+# 데이터베이스 생성 (App 레포의 sql/schema.sql 기준 — inventory)
 mysql_databases:
-  - name: logistics
+  - name: inventory
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
 
-# 애플리케이션 사용자 생성
+# 애플리케이션 사용자 생성 (App 레포 application.yml 기준 — app_user/Soldesk1.)
+# host '%' 로 SNAT 환경 대응 (HAProxy subnet router 의 source IP 변환)
+# REPLICATION CLIENT 는 SystemStatusController 의 /api/system/db-status 가 SHOW REPLICA STATUS 호출하기 위함
 mysql_users:
-  - name: logistics_user
-    host: "192.168.20.%"
+  - name: app_user
+    host: "%"
     password: "{{ vault_db_app_password }}"
-    priv: "logistics.*:ALL"
+    priv: "inventory.*:ALL/*.*:REPLICATION CLIENT"
 
 # MySQL 튜닝 (VM 리소스에 맞게 조정)
 mysql_innodb_buffer_pool_size: "1G"

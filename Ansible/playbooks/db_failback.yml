@@ -13,18 +13,18 @@
 #   → Jenkins가 양쪽(AWS VPC + Tailscale subnet router)에 접근 가능하므로 중개
 #
 # 실행 전제:
-#   1) Jenkins가 미리 실행: mysqldump -h <RDS> -u admin appdb > dump.sql
-#   2) site.yml로 온프렘 3개 VM 프로비저닝 완료 (MySQL 기동, logistics DB 생성)
+#   1) Jenkins가 미리 실행: mysqldump -h <RDS> -u admin inventory > dump.sql
+#   2) site.yml로 온프렘 3개 VM 프로비저닝 완료 (MySQL 기동, inventory DB 생성)
 #
 # 실행 방법:
 #   ansible-playbook -i inventories/on-premise/hosts.yml \
 #     playbooks/db_failback.yml \
 #     -e "dump_src=/var/lib/jenkins/workspace/<job>/dump.sql"
 #
-# DB 이름 매핑:
-#   AWS RDS      : appdb
-#   온프레미스    : logistics  (mysql_databases[0].name)
-#   → dump 파일에 DB 이름이 없으므로 (mysqldump 기본) restore 시 DB 명 지정만으로 매핑 완료
+# DB 이름 매핑 (2026-04-26 App 레포 마이그레이션 후):
+#   AWS RDS      : inventory
+#   온프레미스    : inventory  (mysql_databases[0].name)
+#   → 양쪽 동일. dump 파일에 DB 이름이 없으므로 restore 시 DB 명 지정으로 inventory 에 적재
 # ============================================================
 
 - name: "[Phase 3] DB Failback - RDS dump restore to on-premise MySQL"

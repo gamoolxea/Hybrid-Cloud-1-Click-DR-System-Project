@@ -357,8 +357,8 @@ SQL
                 //   - --single-transaction: InnoDB 일관성 스냅샷 (lock 없이)
                 //   - --add-drop-table: restore 시 기존 빈 테이블(Hibernate 자동 생성본) 덮어쓰기
                 //   - --no-tablespaces: PROCESS 권한 없는 RDS admin 호환
-                //   - DB 이름 'appdb'만 지정 (--databases 미사용) → dump 파일에 USE/CREATE 없음
-                //     → restore 시 DB명 자유 매핑 가능 (appdb → logistics)
+                //   - DB 이름 'inventory' 만 지정 (--databases 미사용) → dump 파일에 USE/CREATE 없음
+                //     → restore 시 DB명 명시만으로 매핑 (App 레포 schema 와 일치하는 inventory 로)
                 //   - MYSQL_PWD 환경변수 사용 (ps 목록 비밀번호 노출 방지)
                 sh '''
                     set -e
@@ -378,7 +378,7 @@ SQL
                         --single-transaction \
                         --add-drop-table \
                         --no-tablespaces \
-                        appdb > ${WORKSPACE}/dump.sql
+                        inventory > ${WORKSPACE}/dump.sql
 
                     unset MYSQL_PWD
 
@@ -389,7 +389,7 @@ SQL
 
                 // 3-4) Ansible db_failback.yml 실행
                 //   - dump.sql → onprem DB VM으로 copy (ProxyJump via HAProxy Tailscale)
-                //   - mysql logistics < dump.sql (DB 이름 매핑 appdb → logistics)
+                //   - mysql inventory < dump.sql (App 레포 jar 가 기대하는 DB 이름)
                 //   - WEBWAS Spring Boot 재시작 (HikariCP 커넥션 풀 리프레시)
                 //   - /actuator/health 200 대기
                 dir('Ansible') {
