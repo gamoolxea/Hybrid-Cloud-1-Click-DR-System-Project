@@ -164,6 +164,10 @@ resource "aws_instance" "haproxy" {
   vpc_security_group_ids = [var.haproxy_sg_id]
   key_name               = var.key_name
 
+  # CloudWatch Agent 가 EC2 metadata 로 IAM 자격증명 획득해서
+  # /HybridDR/AWS namespace 로 metric/log push 함.
+  iam_instance_profile = aws_iam_instance_profile.haproxy.name
+
   # user_data 변경 시 EC2 자동 재생성 (in-place update 안 함)
   # 이게 없으면 user_data 고쳐도 기존 인스턴스는 그대로 — boot 시만 실행되는 스크립트라서.
   user_data_replace_on_change = true
@@ -197,12 +201,29 @@ backend onprem_back
     balance roundrobin
     option  httpchk GET /actuator/health
     # onprem Spring Boot WEBWAS 직접 지정.
-    # AWS HAProxy는 Tailscale 클라이언트로서 subnet router(onprem HAProxy 100.101.249.121)가
+    # AWS HAProxy는 Tailscale 클라이언트로서 subnet router(onprem HAProxy)가
     # advertise하는 192.168.20.0/24 route를 accept하므로 이 주소로 도달 가능.
     server  onprem 192.168.20.12:8080 check
 HAPROXY
 systemctl enable haproxy
 systemctl restart haproxy
+
+# === CloudWatch Agent: install + config 다운로드 + 시작 ===
+# AMI 가 Amazon Linux 2023 라 dnf 로 직접 rpm install 가능.
+dnf install -y https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+
+# config 는 git 레포에서 raw URL 로 가져옴 (환경 무관 baseline + git 으로 변경 추적)
+curl -fsSL \
+  https://raw.githubusercontent.com/Soldesk-Cloud/hybrid-cloud-dr-infra/main/monitoring/cloudwatch-agent-haproxy.json \
+  -o /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+# IAM role 의 EC2 metadata 자격증명 사용. mode=ec2.
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config \
+  -m ec2 \
+  -s \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+# === ===
 EOF
 
   root_block_device {

@@ -18,7 +18,7 @@ output "alarms_console_url" {
 }
 
 output "alarm_names" {
-  description = "생성된 알람 이름 리스트 (온프렘 3개 + AWS 5개 = 총 8개)"
+  description = "생성된 알람 이름 리스트 (온프렘 3개 + AWS 6개 = 총 9개)"
   value = [
     # 온프렘 (CRITICAL)
     aws_cloudwatch_metric_alarm.webwas_heartbeat_loss.alarm_name,
@@ -30,5 +30,6 @@ output "alarm_names" {
     aws_cloudwatch_metric_alarm.rds_cpu_high.alarm_name,
     aws_cloudwatch_metric_alarm.rds_connections_high.alarm_name,
     aws_cloudwatch_metric_alarm.rds_storage_low.alarm_name,
+    aws_cloudwatch_metric_alarm.rds_replica_lag.alarm_name,
   ]
 }

@@ -30,3 +30,10 @@ spring_boot_db_password: "{{ vault_db_app_password }}"
 # ===========================================================
 cloudwatch_enable_procstat: true
 cloudwatch_procstat_pattern: "logistics-system.jar"
+
+# Spring Boot 로그를 CloudWatch Logs 로 push.
+# 발표에서 "관찰 가능성" (observability) 메시지 + 트러블슈팅 시 원격 로그 조회 용도.
+cloudwatch_log_files:
+  - path: "/opt/logistics-system/logs/*.log"
+    log_group: "/hybrid-dr/onprem/webwas"
+    retention: 7

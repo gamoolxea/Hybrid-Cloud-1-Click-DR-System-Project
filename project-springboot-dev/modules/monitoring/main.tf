@@ -275,6 +275,38 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage_low" {
 }
 
 ############################
+# CloudWatch Alarm 9: RDS Cascade Replication Lag
+############################
+# RDS 가 cascade 의 final slave 입장에서 source (DB EC2) 와의 lag 추적.
+# 30초 이상 = onprem 변경이 RDS 까지 도달 못 하는 상태 = 데이터 정합성 risk.
+# 발표 시연에서 cascade 동작 시각화의 핵심 metric.
+resource "aws_cloudwatch_metric_alarm" "rds_replica_lag" {
+  alarm_name          = "${var.project_name}-rds-replica-lag"
+  alarm_description   = "[WARNING] RDS cascade replica lag ${var.rds_replica_lag_threshold}초 초과 — onprem→AWS 데이터 정합성 위험"
+  namespace           = "AWS/RDS"
+  metric_name         = "ReplicaLag"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 5
+  datapoints_to_alarm = 5
+  threshold           = var.rds_replica_lag_threshold
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_identifier
+  }
+
+  alarm_actions = [aws_sns_topic.dr_alerts.arn]
+
+  tags = merge(var.common_tags, {
+    Severity = "warning"
+    Layer    = "aws"
+    Purpose  = "cascade-lag"
+  })
+}
+
+############################
 # CloudWatch Dashboard: 풍부한 시각화
 ############################
 # 실시간 대시보드로 CPU/Memory/Disk 를 한눈에.
@@ -463,11 +495,36 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
           ]
         }
       },
-      # ===== Row 5: Alarm state 요약 (8개 전체) =====
+      # ===== Row 5: Cascade Replication Lag (full width) =====
+      # cascade 시연의 핵심 시각 자료. RDS 가 cascade final slave 로서 lag 보여줌.
+      {
+        type   = "metric"
+        x      = 0
+        y      = 24
+        width  = 24
+        height = 6
+        properties = {
+          title   = "RDS Cascade Replication Lag (seconds) — onprem master → DB EC2 → RDS"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stacked = false
+          metrics = [
+            ["AWS/RDS", "ReplicaLag", "DBInstanceIdentifier", var.rds_identifier]
+          ]
+          yAxis = { left = { min = 0 } }
+          annotations = {
+            horizontal = [{
+              label = "lag threshold (${var.rds_replica_lag_threshold}s)"
+              value = var.rds_replica_lag_threshold
+            }]
+          }
+        }
+      },
+      # ===== Row 6: Alarm state 요약 (9개 전체) =====
       {
         type   = "alarm"
         x      = 0
-        y      = 24
+        y      = 30
         width  = 24
         height = 4
         properties = {
@@ -480,7 +537,8 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
             aws_cloudwatch_metric_alarm.alb_5xx_errors.arn,
             aws_cloudwatch_metric_alarm.rds_cpu_high.arn,
             aws_cloudwatch_metric_alarm.rds_connections_high.arn,
-            aws_cloudwatch_metric_alarm.rds_storage_low.arn
+            aws_cloudwatch_metric_alarm.rds_storage_low.arn,
+            aws_cloudwatch_metric_alarm.rds_replica_lag.arn
           ]
         }
       }

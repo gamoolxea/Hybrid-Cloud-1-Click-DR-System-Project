@@ -264,7 +264,8 @@ resource "aws_iam_role_policy" "jenkins_dr_control" {
         Action = "iam:PassRole"
         Resource = [
           "arn:aws:iam::*:role/project-springboot-role",
-          "arn:aws:iam::*:role/project-jenkins-role"
+          "arn:aws:iam::*:role/project-jenkins-role",
+          "arn:aws:iam::*:role/project-haproxy-role"
         ]
         Condition = {
           StringEquals = {
@@ -287,5 +288,41 @@ resource "aws_iam_instance_profile" "jenkins" {
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-jenkins-profile"
+  })
+}
+
+############################
+# HAProxy용 IAM (CloudWatch Agent metric/log push 권한)
+############################
+resource "aws_iam_role" "haproxy" {
+  name = "${var.project_name}-haproxy-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-haproxy-role"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "haproxy_cloudwatch" {
+  role       = aws_iam_role.haproxy.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_instance_profile" "haproxy" {
+  name = "${var.project_name}-haproxy-profile"
+  role = aws_iam_role.haproxy.name
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-haproxy-profile"
   })
 }

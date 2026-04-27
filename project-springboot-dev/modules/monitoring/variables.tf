@@ -129,3 +129,9 @@ variable "alb_5xx_threshold" {
   type        = number
   default     = 5
 }
+
+variable "rds_replica_lag_threshold" {
+  description = "RDS cascade replica lag 경고 임계값 (초). cascade 가 onprem master → DB EC2 → RDS 로 흐를 때 RDS 쪽에서 본 lag."
+  type        = number
+  default     = 30
+}

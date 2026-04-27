@@ -30,3 +30,11 @@ cloudwatch_hostname: "{{ inventory_hostname }}"
 # WEBWAS 에서만 true (group_vars/webwas.yml 에서 오버라이드)
 cloudwatch_enable_procstat: false
 cloudwatch_procstat_pattern: "logistics-system.jar"
+
+# 로그 파일 수집 리스트 (host 별 group_vars 에서 오버라이드)
+# 항목 형식:
+#   - path: "/opt/logistics-system/logs/*.log"
+#     log_group: "/hybrid-dr/onprem/webwas"
+#     retention: 7   # 선택, 기본 7일
+# 빈 리스트 면 logs 섹션 생략 (CloudWatch Logs 권한 없는 호스트 안전).
+cloudwatch_log_files: []
