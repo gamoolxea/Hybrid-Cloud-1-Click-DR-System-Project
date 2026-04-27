@@ -208,14 +208,76 @@ HAPROXY
 systemctl enable haproxy
 systemctl restart haproxy
 
-# === CloudWatch Agent: install + config 다운로드 + 시작 ===
+# === CloudWatch Agent: install + config inline + 시작 ===
 # AMI 가 Amazon Linux 2023 라 dnf 로 직접 rpm install 가능.
 dnf install -y https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
 
-# config 는 git 레포에서 raw URL 로 가져옴 (환경 무관 baseline + git 으로 변경 추적)
-curl -fsSL \
-  https://raw.githubusercontent.com/Soldesk-Cloud/hybrid-cloud-dr-infra/main/monitoring/cloudwatch-agent-haproxy.json \
-  -o /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+# config 를 user_data 에 직접 inline (private GitHub repo 라 raw URL 404 회피).
+# $${...} 은 Terraform interpolation 회피용 escape — 실제 파일에는 $${...} 가
+# CloudWatch Agent variable 로 그대로 들어가서 agent 가 EC2 metadata 로 치환.
+# Reference 사본: monitoring/cloudwatch-agent-haproxy.json (변경 시 두 곳 동기화)
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<-AGENTCONFIG
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "cwagent"
+  },
+  "metrics": {
+    "namespace": "HybridDR/AWS",
+    "append_dimensions": {
+      "InstanceId": "$${aws:InstanceId}",
+      "InstanceType": "$${aws:InstanceType}"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": ["cpu_usage_idle", "cpu_usage_user", "cpu_usage_system", "cpu_usage_iowait"],
+        "metrics_collection_interval": 60,
+        "totalcpu": true,
+        "append_dimensions": { "hostname": "aws-haproxy" }
+      },
+      "mem": {
+        "measurement": ["mem_used_percent", "mem_available_percent"],
+        "metrics_collection_interval": 60,
+        "append_dimensions": { "hostname": "aws-haproxy" }
+      },
+      "disk": {
+        "measurement": ["used_percent"],
+        "metrics_collection_interval": 60,
+        "resources": ["/"],
+        "append_dimensions": { "hostname": "aws-haproxy" }
+      },
+      "netstat": {
+        "measurement": ["tcp_established", "tcp_time_wait", "tcp_close_wait"],
+        "metrics_collection_interval": 60,
+        "append_dimensions": { "hostname": "aws-haproxy" }
+      },
+      "procstat": [
+        {
+          "exe": "haproxy",
+          "measurement": ["pid_count", "cpu_usage", "memory_rss"],
+          "metrics_collection_interval": 60,
+          "append_dimensions": { "hostname": "aws-haproxy" }
+        }
+      ]
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/haproxy/haproxy.log",
+            "log_group_name": "/hybrid-dr/aws/haproxy",
+            "log_stream_name": "{instance_id}",
+            "retention_in_days": 7,
+            "timezone": "Local"
+          }
+        ]
+      }
+    }
+  }
+}
+AGENTCONFIG
 
 # IAM role 의 EC2 metadata 자격증명 사용. mode=ec2.
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
