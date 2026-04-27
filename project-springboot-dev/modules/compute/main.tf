@@ -213,8 +213,10 @@ systemctl restart haproxy
 dnf install -y https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
 
 # config 를 user_data 에 직접 inline (private GitHub repo 라 raw URL 404 회피).
-# $${...} 은 Terraform interpolation 회피용 escape — 실제 파일에는 $${...} 가
-# CloudWatch Agent variable 로 그대로 들어가서 agent 가 EC2 metadata 로 치환.
+# 주: namespace-level append_dimensions (InstanceId/InstanceType) 제거.
+#   - EC2 mode 의 agent 가 InstanceId 를 자동으로 추가하므로 명시 불필요
+#   - 명시 시 CW Agent placeholder 가 bash heredoc 에서 bad substitution 발생
+#     (heredoc 미완성 -> JSON 비어있음 -> fetch-config 실패)
 # Reference 사본: monitoring/cloudwatch-agent-haproxy.json (변경 시 두 곳 동기화)
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<-AGENTCONFIG
 {
@@ -224,10 +226,6 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<-AGENT
   },
   "metrics": {
     "namespace": "HybridDR/AWS",
-    "append_dimensions": {
-      "InstanceId": "$${aws:InstanceId}",
-      "InstanceType": "$${aws:InstanceType}"
-    },
     "metrics_collected": {
       "cpu": {
         "measurement": ["cpu_usage_idle", "cpu_usage_user", "cpu_usage_system", "cpu_usage_iowait"],
