@@ -1,0 +1,92 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "cwagent"
+  },
+  "metrics": {
+    "namespace": "HybridDR/AWS",
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}",
+      "InstanceType": "${aws:InstanceType}"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [
+          "cpu_usage_idle",
+          "cpu_usage_user",
+          "cpu_usage_system",
+          "cpu_usage_iowait"
+        ],
+        "metrics_collection_interval": 60,
+        "totalcpu": true,
+        "append_dimensions": {
+          "hostname": "aws-springboot"
+        }
+      },
+      "mem": {
+        "measurement": [
+          "mem_used_percent",
+          "mem_available_percent",
+          "mem_used",
+          "mem_total"
+        ],
+        "metrics_collection_interval": 60,
+        "append_dimensions": {
+          "hostname": "aws-springboot"
+        }
+      },
+      "disk": {
+        "measurement": [
+          "used_percent",
+          "inodes_free"
+        ],
+        "metrics_collection_interval": 60,
+        "resources": [
+          "/"
+        ],
+        "append_dimensions": {
+          "hostname": "aws-springboot"
+        }
+      },
+      "netstat": {
+        "measurement": [
+          "tcp_established",
+          "tcp_time_wait"
+        ],
+        "metrics_collection_interval": 60,
+        "append_dimensions": {
+          "hostname": "aws-springboot"
+        }
+      },
+      "procstat": [
+        {
+          "pattern": "app.jar",
+          "measurement": [
+            "pid_count",
+            "cpu_usage",
+            "memory_rss"
+          ],
+          "metrics_collection_interval": 60,
+          "append_dimensions": {
+            "hostname": "aws-springboot"
+          }
+        }
+      ]
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/opt/myapp/logs/*.log",
+            "log_group_name": "/hybrid-dr/aws/springboot",
+            "log_stream_name": "{instance_id}",
+            "retention_in_days": 7,
+            "timezone": "Local"
+          }
+        ]
+      }
+    }
+  }
+}
