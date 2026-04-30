@@ -1,17 +1,16 @@
 # ==============================
-# Pilot Light 상태 (평상시)
-# AWS 대기 상태 - SpringBoot EC2 없음, HAProxy만 대기
-# 실행: terraform apply -var-file="terraform.tfvars" -var-file="pilot-light.tfvars"
+# Pilot Light ?�태 (?�상??
+# AWS ?��??�태 - SpringBoot EC2 ?�음, HAProxy�??��?# ?�행: terraform apply -var-file="terraform.tfvars" -var-file="pilot-light.tfvars"
 # ==============================
 
-# 신규 추가
+# ?�규 추�?
 dr_mode        = false
 
-# app_ami_id → springboot_ami_id
-springboot_ami_id        = "ami-0c8697730316c257b"
+# app_ami_id ??springboot_ami_id
+springboot_ami_id        = "ami-016e4607515173ff6"
 springboot_instance_type = "t3.micro"
 
-# ASG 0으로 설정 (SpringBoot EC2 없음)
+# ASG 0?�로 ?�정 (SpringBoot EC2 ?�음)
 asg_min_size         = 0
 asg_desired_capacity = 0
 asg_max_size         = 4
