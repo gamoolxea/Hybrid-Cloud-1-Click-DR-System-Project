@@ -42,8 +42,11 @@ resource "aws_cloudwatch_metric_alarm" "webwas_heartbeat_loss" {
   period              = 60
   evaluation_periods  = var.heartbeat_missing_minutes
   datapoints_to_alarm = var.heartbeat_missing_minutes
+  # heartbeat 패턴: mem_used_percent 는 데이터 있는 한 항상 > 0.
+  # value <= 0 (≈ 데이터 없음 외엔 발생 X) + treat_missing="breaching" 조합으로
+  # "데이터 끊기면 ALARM, 흐르면 OK" 동작 구현.
   threshold           = 0
-  comparison_operator = "GreaterThanThreshold"
+  comparison_operator = "LessThanOrEqualToThreshold"
   treat_missing_data  = "breaching"
 
   # host = telegraf 가 자동 추가하는 OS hostname dim. 알람 exact-match 위해 명시 필수.
@@ -109,8 +112,9 @@ resource "aws_cloudwatch_metric_alarm" "db_heartbeat_loss" {
   period              = 60
   evaluation_periods  = var.heartbeat_missing_minutes
   datapoints_to_alarm = var.heartbeat_missing_minutes
+  # heartbeat 패턴: 위 webwas-heartbeat-loss 와 동일 원리.
   threshold           = 0
-  comparison_operator = "GreaterThanThreshold"
+  comparison_operator = "LessThanOrEqualToThreshold"
   treat_missing_data  = "breaching"
 
   # host = telegraf 가 자동 추가하는 OS hostname dim. 알람 exact-match 위해 명시 필수.
