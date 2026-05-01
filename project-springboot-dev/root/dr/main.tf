@@ -17,8 +17,12 @@ provider "aws" {
 }
 
 ############################
-# 공통 태그 (모든 모듈에 주입)
+# 공통 태그 + 고정 AMI ID
 ############################
+# AMI 는 의도적으로 고정. data "aws_ami" + most_recent=true 로 두면
+# Amazon 이 새 AL2023 publish 할 때마다 4대 EC2 가 destroy + create 트리거됨.
+# stateful 인프라 (Jenkins/MySQL replica/HAProxy) 라 절대 자동 갱신되면 안 됨.
+# 새 AMI 로 교체하려면 이 ID 만 수정 후 의도적으로 apply.
 locals {
   common_tags = {
     Project     = "hybrid-dr"
@@ -26,24 +30,8 @@ locals {
     ManagedBy   = "terraform"
     DRMode      = var.dr_mode ? "active" : "pilot-light"
   }
-}
 
-############################
-# Amazon Linux 2023 최신 AMI (Bastion / Jenkins용)
-############################
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+  amazon_linux_2023_ami_id = "ami-01feefd75562de1e9" # AL2023, ap-northeast-2, 2026-04-30 기준
 }
 
 ############################
@@ -102,18 +90,18 @@ module "compute" {
   springboot_ami_id        = var.springboot_ami_id
   springboot_instance_type = var.springboot_instance_type
 
-  haproxy_ami_id           = data.aws_ami.amazon_linux_2023.id
+  haproxy_ami_id           = local.amazon_linux_2023_ami_id
   tailscale_auth_key       = var.tailscale_auth_key
 
-  bastion_ami_id           = data.aws_ami.amazon_linux_2023.id
+  bastion_ami_id           = local.amazon_linux_2023_ami_id
   bastion_instance_type    = var.bastion_instance_type
-  jenkins_ami_id           = data.aws_ami.amazon_linux_2023.id
+  jenkins_ami_id           = local.amazon_linux_2023_ami_id
   jenkins_instance_type    = var.jenkins_instance_type
   asg_desired_capacity     = var.asg_desired_capacity
   asg_min_size             = var.asg_min_size
   asg_max_size             = var.asg_max_size
 
-  db_ec2_ami_id            = data.aws_ami.amazon_linux_2023.id
+  db_ec2_ami_id            = local.amazon_linux_2023_ami_id
   db_ec2_subnet_id         = module.networking.db_ec2_subnet_id
   db_ec2_sg_id             = module.networking.db_ec2_sg_id
 
