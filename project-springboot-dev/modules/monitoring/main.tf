@@ -46,7 +46,9 @@ resource "aws_cloudwatch_metric_alarm" "webwas_heartbeat_loss" {
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "breaching"
 
+  # host = telegraf 가 자동 추가하는 OS hostname dim. 알람 exact-match 위해 명시 필수.
   dimensions = {
+    host     = "WEBWAS"
     hostname = var.onprem_webwas_hostname
   }
 
@@ -77,9 +79,12 @@ resource "aws_cloudwatch_metric_alarm" "webwas_springboot_down" {
   comparison_operator = "LessThanThreshold"
   treat_missing_data  = "breaching"
 
+  # host + pid_finder 도 telegraf 자동 추가. 4개 dim 모두 명시해야 알람 매칭됨.
   dimensions = {
-    hostname = var.onprem_webwas_hostname
-    pattern  = "logistics-system.jar"
+    host       = "WEBWAS"
+    hostname   = var.onprem_webwas_hostname
+    pattern    = "logistics-system.jar"
+    pid_finder = "native"
   }
 
   alarm_actions = [aws_sns_topic.dr_alerts.arn]
@@ -108,7 +113,9 @@ resource "aws_cloudwatch_metric_alarm" "db_heartbeat_loss" {
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "breaching"
 
+  # host = telegraf 가 자동 추가하는 OS hostname dim. 알람 exact-match 위해 명시 필수.
   dimensions = {
+    host     = "DB"
     hostname = var.onprem_db_hostname
   }
 
@@ -329,9 +336,12 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
           region  = var.aws_region
           stacked = false
           metrics = [
-            [var.metric_namespace, "cpu_usage_user", "hostname", var.onprem_webwas_hostname, "cpu", "cpu-total"],
-            [var.metric_namespace, "cpu_usage_user", "hostname", var.onprem_db_hostname, "cpu", "cpu-total"],
-            [var.metric_namespace, "cpu_usage_user", "hostname", var.onprem_haproxy_hostname, "cpu", "cpu-total"]
+            [{
+              expression = "SEARCH(' {${var.metric_namespace},cpu,host,hostname} MetricName=\"cpu_usage_user\" cpu=\"cpu-total\" ', 'Average', 60)"
+              id         = "e1"
+              label      = "$${PROP('Dim.hostname')}"
+              region     = var.aws_region
+            }]
           ]
           yAxis = { left = { min = 0, max = 100 } }
         }
@@ -349,9 +359,12 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
           region  = var.aws_region
           stacked = false
           metrics = [
-            [var.metric_namespace, "mem_used_percent", "hostname", var.onprem_webwas_hostname],
-            [var.metric_namespace, "mem_used_percent", "hostname", var.onprem_db_hostname],
-            [var.metric_namespace, "mem_used_percent", "hostname", var.onprem_haproxy_hostname]
+            [{
+              expression = "SEARCH(' {${var.metric_namespace},host,hostname} MetricName=\"mem_used_percent\" ', 'Average', 60)"
+              id         = "e1"
+              label      = "$${PROP('Dim.hostname')}"
+              region     = var.aws_region
+            }]
           ]
           yAxis = { left = { min = 0, max = 100 } }
         }
@@ -369,9 +382,12 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
           region  = var.aws_region
           stacked = false
           metrics = [
-            [var.metric_namespace, "disk_used_percent", "hostname", var.onprem_webwas_hostname, "path", "/"],
-            [var.metric_namespace, "disk_used_percent", "hostname", var.onprem_db_hostname, "path", "/"],
-            [var.metric_namespace, "disk_used_percent", "hostname", var.onprem_haproxy_hostname, "path", "/"]
+            [{
+              expression = "SEARCH(' {${var.metric_namespace},device,fstype,host,hostname,path} MetricName=\"disk_used_percent\" path=\"/\" ', 'Average', 60)"
+              id         = "e1"
+              label      = "$${PROP('Dim.hostname')}"
+              region     = var.aws_region
+            }]
           ]
           yAxis = { left = { min = 0, max = 100 } }
         }
@@ -388,7 +404,12 @@ resource "aws_cloudwatch_dashboard" "hybrid_dr" {
           region  = var.aws_region
           stacked = false
           metrics = [
-            [var.metric_namespace, "procstat_lookup_pid_count", "hostname", var.onprem_webwas_hostname, "pattern", "logistics-system.jar"]
+            [{
+              expression = "SEARCH(' {${var.metric_namespace},host,hostname,pattern,pid_finder} MetricName=\"procstat_lookup_pid_count\" ', 'Average', 60)"
+              id         = "e1"
+              label      = "$${PROP('Dim.hostname')}"
+              region     = var.aws_region
+            }]
           ]
           yAxis = { left = { min = 0, max = 3 } }
         }
