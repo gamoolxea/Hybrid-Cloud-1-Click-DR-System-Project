@@ -66,3 +66,5 @@ __pycache__/
 dr-project-review-*.md
 *.md
 *.pdf
+*.html
+*.drawio
